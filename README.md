@@ -90,7 +90,7 @@ Failed to execute XLA Runtime executable: run time error: custom call 'xla.gpu.a
 There are three patterns for running MaxText with more than one host.
 
 1. [GKE, recommended] [Running Maxtext with xpk](getting_started/Run_MaxText_via_xpk.md) - Quick Experimentation and Production support
-2. [GCE] [Running Maxtext with Multihost Jobs](getting_started/Run_MaxText_via_multihost_jobs.md) - Long Running Production Jobs with Queued Resources
+2. [GCE] [Running Maxtext with Multihost Jobs](getting_started/Run_MaxText_via_multihost_job.md) - Long Running Production Jobs with Queued Resources
 3. [GCE] [Running Maxtext with Multihost Runner](getting_started/Run_MaxText_via_multihost_runner.md) -  Fast experiments via multiple ssh connections.
 
 ## Getting Starting: Preflight Optimizations
@@ -216,3 +216,6 @@ In the save step of example 2 above we included exporting the compiler flag `LIB
 ## Supported Open Models
 
 MaxText supports training and inference of various open models. Follow user guides under [getting started](https://github.com/google/maxtext/tree/main/getting_started) section to know more. 
+
+* [Gemma](https://ai.google.dev/gemma): a family of open-weights Large Language Model (LLM) by [Google DeepMind](https://deepmind.google/), based on Gemini research and technology. \
+You can run decode and finetuning using instructions mentioned [here](https://github.com/google/maxtext/blob/main/getting_started/Run_Gemma.md).
