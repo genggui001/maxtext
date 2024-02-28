@@ -45,7 +45,7 @@ def string_to_bool(s: str) -> bool:
 _yaml_types_to_parser = {str : str, int : int, float : float, bool : string_to_bool}
 
 def validate_attention_type(s: str) -> None:
-  valid_attention_types = ('dot_product', 'flash', 'gpu_flash_xla', 'gpu_flash_triton')
+  valid_attention_types = ('dot_product', 'flash', 'cudnn_flash_te')
   if s not in valid_attention_types: # currently supported attention
     raise ValueError(
       "Invalid attention type was passed. Valid options ", valid_attention_types
@@ -78,6 +78,11 @@ def validate_no_keys_overwritten_twice(keys1: list[str], keys2: list[str]):
 
 _config = None
 config = None
+
+def print_system_information():
+  max_logging.log(f"System Information: Jax Version: {jax.__version__}")
+  max_logging.log(f"System Information: Jaxlib Version: {jax.lib.__version__}")
+  max_logging.log(f"System Information: Jax Backend: {jax.lib.xla_bridge.get_backend().platform_version}")
 
 def _lists_to_tuples(l: list[Any]) -> Union[tuple[Any],list[Any]]:
   return tuple(_lists_to_tuples(x) for x in l) if isinstance(l, list) else l
@@ -154,7 +159,7 @@ class _HyperParameters():
     keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
     max_logging.log(
         f"Updating keys from env and command line: {keys_from_env_and_command_line}")
-    keys_from_model = _HyperParameters.update_model_vars(raw_keys)
+    keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys)
     max_logging.log(f"Updating keys from model: {keys_from_model}")
     validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
 
@@ -200,6 +205,8 @@ class _HyperParameters():
     raw_keys['num_slices'] = get_num_slices(raw_keys)
     raw_keys['quantization_local_shard_count'] = get_quantization_local_shard_count(raw_keys)
 
+    print_system_information()
+
     # Write raw_keys to GCS before type conversions
     max_utils.write_config_raw_keys_for_gcs(raw_keys)
 
@@ -228,7 +235,7 @@ class _HyperParameters():
     raw_keys['eval_interval'] = math.ceil(24567 / global_batch_size_to_train_on)
 
   @staticmethod
-  def update_model_vars(raw_keys):
+  def update_model_vars(base_config_path, raw_keys):
     ''' Update model config variables
     '''
     validate_model_name(raw_keys['model_name'])
@@ -236,8 +243,13 @@ class _HyperParameters():
 
     updated_keys = []
     if raw_keys['model_name'] != 'default':
-      dir_path = os.path.dirname(os.path.realpath(__file__))
-      file_path = os.path.join(dir_path, f"configs/models/{raw_keys['model_name']}.yml")
+      model_name = raw_keys['model_name']
+      # First look at the model configs under base_config_path, and fallback to
+      # the python codebase if the config cannot be found.
+      file_path = os.path.join(base_config_path, f"models/{model_name}.yml")
+      if not os.path.isfile(file_path):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        file_path = os.path.join(dir_path, f"configs/models/{model_name}.yml")
       with open(file_path, 'r', encoding="utf-8") as file:
         model_vars = yaml.safe_load(file)
         updated_keys = list(model_vars.keys())
