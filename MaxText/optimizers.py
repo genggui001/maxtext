@@ -23,6 +23,7 @@ import re
 import optax
 from optax._src import utils
 import jax.numpy as jnp
+import numpy as np
 
 from max_utils import create_learning_rate_schedule
 
@@ -71,6 +72,39 @@ def get_weight_decay_mask(exclusions):
   
   return weight_decay_mask
 
+def abs_sq(x):
+  """Returns the squared norm of a (maybe complex) array.
+
+  For real `x`, JAX generates the same HLO from this, `jnp.square(x)`, `x * x`,
+  or `x**2`.
+
+  Args:
+    x: a (maybe complex) array.
+
+  Returns:
+    The squared norm of `x`.
+  """
+  if not isinstance(x, (np.ndarray, jnp.ndarray)):
+    raise ValueError(f"`abs_sq` accepts only NDarrays, got: {x}.")
+  return (x.conj() * x).real
+
+def safe_root_mean_squares(x, min_rms, axis=None, keepdims=False):
+  """Returns `maximum(sqrt(mean(abs_sq(x))), min_norm)` with correct grads.
+
+  The gradients of `maximum(sqrt(mean(abs_sq(x))), min_norm)` at 0.0
+  is `NaN`, because jax will evaluate both branches of the `jnp.maximum`. This
+  function will instead return the correct gradient of 0.0 also in such setting.
+
+  Args:
+    x: jax array.
+    min_rms: lower bound for the returned norm.
+
+  Returns:
+    The safe RMS of the input vector, accounting for correct gradient.
+  """
+  rms = jnp.sqrt(jnp.mean(abs_sq(x), axis=axis, keepdims=keepdims))
+  x = jnp.where(rms <= min_rms, jnp.ones_like(x), x)
+  return jnp.where(rms <= min_rms, min_rms, jnp.sqrt(jnp.mean(abs_sq(x), axis=axis, keepdims=keepdims)))
 
 def get_optimizer(config):
 
@@ -84,11 +118,6 @@ def get_optimizer(config):
       learning_rate_schedule,
       beta=config.adam_b1,
       weight_decay=config.adam_weight_decay,
-      mask=get_weight_decay_mask([
-        "norm",
-        "scale",
-        "bias",
-      ]),
     )
     return optimizer, learning_rate_schedule
 
@@ -156,17 +185,16 @@ def tiger_pax(
   beta: float,
   mu_dtype = None,
   weight_decay: float = 1e-3,
-  mask = None,
 ):
   
   mu_dtype = utils.canonicalize_dtype(mu_dtype)
 
-  def init_fn(params):
+  def base_init_fn(params):
     mu = jax.tree_util.tree_map(  # moment
         lambda t: jnp.zeros_like(t, dtype=mu_dtype), params)
     return optax.ScaleByLionState(count=jnp.zeros([], jnp.int32), mu=mu)
 
-  def update_fn(
+  def base_update_fn(
     updates, 
     state: optax.ScaleByLionState, 
     params=None
@@ -178,9 +206,46 @@ def tiger_pax(
     count_inc = optax.safe_int32_increment(state.count)
     return updates_new, optax.ScaleByLionState(count=count_inc, mu=mu)
 
+  def trust_ratio_init_fn(params):
+    del params
+    return optax.ScaleByTrustRatioState()
+
+  def trust_ratio_update_fn(updates, state, params):
+
+    def _scale_update(param_name, update, param):
+      if (
+        "norm" in param_name
+        or "scale" in param_name
+        or "bias" in param_name
+      ):
+        print((param_name, "use 0.5 scale"))
+        return update * 0.5
+      elif (
+        "embedding" in param_name
+      ):
+        print((param_name, "use emb root_mean_square scale"))
+        param_norm = safe_root_mean_squares(param, min_rms=0., axis=-1, keepdims=True)
+        return update * param_norm
+      else:
+        print((param_name, "use base root_mean_square scale"))
+        param_norm = safe_root_mean_squares(param, min_rms=0.)
+        safe_param_norm = jnp.where(param_norm == 0., jnp.array(1.0, dtype=param.dtype), param_norm)
+        return update * safe_param_norm
+
+    updates = named_tree_map(_scale_update, updates, params, sep='/')
+    return updates, state
+
   return optax.chain(
-    optax.GradientTransformation(init_fn, update_fn),
-    optax.add_decayed_weights(weight_decay, mask),
+    optax.GradientTransformation(base_init_fn, base_update_fn),
+    optax.add_decayed_weights(
+      weight_decay, 
+      mask=get_weight_decay_mask([
+        "norm",
+        "scale",
+        "bias",
+      ])
+    ),
+    optax.GradientTransformation(trust_ratio_init_fn, trust_ratio_update_fn),
     optax.scale_by_learning_rate(learning_rate),
   )
   
