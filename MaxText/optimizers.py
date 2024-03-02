@@ -229,7 +229,7 @@ def tiger_pax(
       elif (
         "layers" in param_name
       ):
-        print((param_name, param.shape, "use layers root_mean_square scale"))
+        print((param_name, param.shape, "use layers root_mean_square at axis=1 scale"))
         param_norm = safe_root_mean_squares(param, min_rms=0., axis=1, keepdims=True)
         safe_param_norm = jnp.where(param_norm == 0., jnp.array(1.0, dtype=param.dtype), param_norm)
         return update * safe_param_norm
