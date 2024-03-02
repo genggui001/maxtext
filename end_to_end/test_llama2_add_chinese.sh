@@ -14,7 +14,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  run_name=runner_${idx} \
  model_name='llama2-7b-add-chinese' \
  ici_tensor_parallelism=4 \
- steps=10000 \
+ steps=100000 \
  warmup_steps_fraction=0.0001 \
  eval_interval=512 \
  checkpoint_period=512 \

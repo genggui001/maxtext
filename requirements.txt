@@ -16,8 +16,10 @@ pylint
 pytest
 pytype
 sentencepiece==0.1.97
-tensorflow-text>=2.13.0
-tensorflow>=2.13.0
+tensorflow-text==2.13.0
+tensorflow==2.13.0
+tensorflow_io==0.34.0
+tensorflow-io-gcs-filesystem==0.34.0
 tensorflow-datasets
 tensorboardx
 tensorboard-plugin-profile

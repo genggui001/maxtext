@@ -481,7 +481,7 @@ def create_learning_rate_schedule(
   def final_schedule(step):
     lr = _final_schedule(step)
     lr = lr * ((step % update_step) == (update_step-1))
-    jax.debug.print("learning rate step = {step}, learning_rate = {lr}", step=step, lr=lr)
+    # jax.debug.print("learning rate step = {step}, learning_rate = {lr}", step=step, lr=lr)
     return lr
 
   return final_schedule

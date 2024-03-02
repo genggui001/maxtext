@@ -235,15 +235,43 @@ def get_datasets(
     config: ml_collections.ConfigDict,
 ):
     """Load and return dataset of batched examples for use during training."""
-    train_ds = load_base_dataset(
+    en_ds = load_base_dataset(
         pattern=os.path.join(config.dataset_path, "gg_en/**/*.jsonl.gz"),
         seed=config.data_shuffle_seed,
     )
 
-    eval_ds = load_base_dataset(
-        pattern=os.path.join(config.dataset_path, "gg_en/**/*.jsonl.gz"),
-        seed=config.data_shuffle_seed+1,
-    ).take(int(config.eval_dataset_size))
+    zh_ds = load_base_dataset(
+        pattern=os.path.join(config.dataset_path, "gg_zh/**/*.jsonl.gz"),
+        seed=config.data_shuffle_seed,
+    )
+
+    other_ds = load_base_dataset(
+        pattern=os.path.join(config.dataset_path, "gg_others_shuffle/**/*.jsonl.gz"),
+        seed=config.data_shuffle_seed,
+    )
+
+    code_ds = load_base_dataset(
+        pattern=os.path.join(config.dataset_path, "the-stack-dedup/**/*.jsonl.gz"),
+        seed=config.data_shuffle_seed,
+    )
+
+    train_ds = tf.data.Dataset.sample_from_datasets(
+        datasets = [
+            en_ds.repeat(),
+            zh_ds.repeat(),
+            other_ds.repeat(),
+            code_ds.repeat(),
+        ], 
+        weights=[
+            0.4,
+            0.45,
+            0.05,
+            0.1,
+        ],
+        seed=config.data_shuffle_seed,
+    )
+
+    eval_ds = train_ds.take(int(config.eval_dataset_size))
 
     dataset_json_spec = {
         "text": tf.TensorSpec(tf.TensorShape([]), tf.string, name="text"),

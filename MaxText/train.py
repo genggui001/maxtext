@@ -98,7 +98,7 @@ def load_next_batch(train_iter, example_batch, config):
   else:
     return next(train_iter)
 
-def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, lr):
+def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, learning_rate_schedule):
   """Records scalar metrics to be written to tensorboard"""
   metrics['scalar'].update({
       'perf/step_time_seconds': step_time_delta.total_seconds()
@@ -111,7 +111,7 @@ def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, lr):
           per_device_tflops /
           step_time_delta.total_seconds()
   })
-  metrics['scalar'].update({'learning/current_learning_rate': lr })
+  metrics['scalar'].update({'learning/current_learning_rate': learning_rate_schedule(metrics['scalar']['learning/opt_count'])})
 
 _buffered_step = None
 _buffered_metrics = None
@@ -151,9 +151,15 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
 
     full_log = step % config.log_period == 0
 
-    max_logging.log(f"completed step: {step}, seconds: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-          f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-          f"loss: {metrics['scalar']['learning/loss']:.3f}")
+    max_logging.log(
+      f"completed step: {step}, seconds: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+      f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
+      f"opt_count: {metrics['scalar']['learning/opt_count']}, "
+      f"loss: {metrics['scalar']['learning/loss']:.5f}, "
+      f"learning_rate: {metrics['scalar']['learning/current_learning_rate']:.8f}, "
+      f"grad_norm: {metrics['scalar']['learning/raw_grad_norm']:.5f}, "
+      f"param_norm: {metrics['scalar']['learning/param_norm']:.5f}"
+    )
 
     if full_log and jax.process_index() == 0:
       max_logging.log(
@@ -263,9 +269,29 @@ def train_step(model, config, state, data, dropout_rng):
   else:
     grads = raw_grads
   new_state = state.apply_gradients(grads=grads)
-  metrics = {'scalar': {'learning/loss': loss, 'learning/grad_norm': max_utils.l2norm_pytree(grads),
-             'learning/raw_grad_norm': max_utils.l2norm_pytree(raw_grads),
-             'learning/param_norm': max_utils.l2norm_pytree(new_state.params)}, 'scalars': {}}
+
+  if isinstance(state.opt_state, optax.MultiStepsState):
+    print("use MultiStepsState step")
+    opt_state = state.opt_state.inner_opt_state
+  else:
+    print("use BaseState step")
+    opt_state = state.opt_state
+  
+  if type(opt_state) == tuple:
+    opt_count = opt_state[-1].count
+  else:
+    opt_count = opt_state.count
+
+  metrics = {
+    'scalar': {
+      'learning/loss': loss, 
+      'learning/grad_norm': max_utils.l2norm_pytree(grads),
+      'learning/raw_grad_norm': max_utils.l2norm_pytree(raw_grads),
+      'learning/param_norm': max_utils.l2norm_pytree(new_state.params),
+      'learning/opt_count': opt_count,
+    }, 
+    'scalars': {}
+  }
 
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
@@ -435,7 +461,7 @@ def train_loop(config, state=None):
       )
 
     new_time = datetime.datetime.now()
-    record_scalar_metrics(metrics, new_time - last_step_completion,  per_device_tflops, learning_rate_schedule(step))
+    record_scalar_metrics(metrics, new_time - last_step_completion,  per_device_tflops, learning_rate_schedule)
     last_step_completion = new_time
 
     if checkpoint_manager is not None:
