@@ -217,11 +217,6 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   # inputs, targets, segments, positions = apply_args
   rng1, aqt_rng = jax.random.split(dropout_rng)
 
-  # decimate proportion of data when per_device_batch_size<1
-  if is_train:
-    for k, v in data.items():
-      data[k] = v[:config.global_batch_size_to_train_on,:]
-
   logits, intermediate_outputs = model.apply({'params': params},
                        data['inputs'],
                        data['inputs_position'],
@@ -259,16 +254,18 @@ def train_step(model, config, state, data, dropout_rng):
     rng2: A new rng key that can be used in future calls.
 
   """
+  # decimate proportion of data when per_device_batch_size<1
+  data = jax.tree_map(lambda x:x[:config.global_batch_size_to_train_on,:], data)
+
   train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
   grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
-  (loss, aux), raw_grads = grad_fn(state.params)
-  intermediate_outputs = aux['intermediate_outputs']
+  (loss, _), raw_grads = grad_fn(state.params)
 
-  if config.gradient_clipping_threshold > 0:
-    grads, _ = optax.clip_by_global_norm(config.gradient_clipping_threshold).update(raw_grads, state, None)
-  else:
-    grads = raw_grads
-  new_state = state.apply_gradients(grads=grads)
+  # if config.gradient_clipping_threshold > 0:
+  #   grads, _ = optax.clip_by_global_norm(config.gradient_clipping_threshold).update(raw_grads, state, None)
+  # else:
+  #   grads = raw_grads
+  new_state = state.apply_gradients(grads=raw_grads)
 
   if isinstance(state.opt_state, optax.MultiStepsState):
     print("use MultiStepsState step")
@@ -285,16 +282,12 @@ def train_step(model, config, state, data, dropout_rng):
   metrics = {
     'scalar': {
       'learning/loss': loss, 
-      'learning/grad_norm': max_utils.l2norm_pytree(grads),
       'learning/raw_grad_norm': max_utils.l2norm_pytree(raw_grads),
       'learning/param_norm': max_utils.l2norm_pytree(new_state.params),
       'learning/opt_count': opt_count,
     }, 
     'scalars': {}
   }
-
-  if config.record_internal_nn_metrics:
-    record_activation_metrics(metrics, intermediate_outputs, config)
 
   return new_state, metrics
 

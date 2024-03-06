@@ -109,69 +109,88 @@ def safe_root_mean_squares(x, min_rms, axis=None, keepdims=False):
 def get_optimizer(config):
 
   if config.opt_type == "tiger":
-    learning_rate_schedule = create_learning_rate_schedule(
-      config, 
-      step_reduction=1,
-      update_step=config.gradient_accumulation_steps,
-    )
-    optimizer = tiger_pax(
-      learning_rate_schedule,
+    return tiger_pax(
+      base_learning_rate=create_learning_rate_schedule(
+        config, 
+        step_reduction=1,
+      ),
       beta=config.adam_b1,
       weight_decay=config.adam_weight_decay,
+      gradient_accumulation_steps=config.gradient_accumulation_steps,
     )
-    return optimizer, learning_rate_schedule
 
   """other optimizer"""
-
   learning_rate_schedule = create_learning_rate_schedule(
     config, 
     step_reduction=config.gradient_accumulation_steps,
-    update_step=1,
   )
 
   if config.opt_type == "sgd":
-    optimizer = optax.sgd(
-      learning_rate_schedule,
-    )
+    optimizer = [
+      optax.identity(),
+      optax.scale_by_learning_rate(learning_rate_schedule)
+    ]
   elif config.opt_type == "adamw":
     # Create AdamW Optimizer following Llama2's training details, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
-    optimizer = optax.adamw(
-      learning_rate_schedule,
-      b1=config.adam_b1,
-      b2=config.adam_b2,
-      eps=config.adam_eps,
-      eps_root=config.adam_eps_root,
-      weight_decay=config.adam_weight_decay,
-      mask=get_weight_decay_mask([
-        "norm",
-        "scale",
-        "bias",
-      ]),
-    )
+    optimizer = [
+      optax.scale_by_adam(
+        b1=config.adam_b1,
+        b2=config.adam_b2,
+        eps=config.adam_eps,
+        eps_root=config.adam_eps_root,
+        mu_dtype=None,
+        nesterov=False,
+      ),
+      optax.add_decayed_weights(
+        weight_decay=config.adam_weight_decay, 
+        mask=get_weight_decay_mask([
+          "norm",
+          "scale",
+          "bias",
+        ])
+      ),
+      optax.scale_by_learning_rate(learning_rate_schedule),
+    ]
   elif config.opt_type == "lion":
-    optimizer = optax.lion(
-      learning_rate_schedule,
-      b1=config.adam_b1,
-      b2=config.adam_b2,
-      weight_decay=config.adam_weight_decay,
-      mask=get_weight_decay_mask([
-        "norm",
-        "scale",
-        "bias",
-      ]),
-    )
+    optimizer = [
+      optax.scale_by_lion(
+        b1=config.adam_b1,
+        b2=config.adam_b2,
+        mu_dtype=None,
+      ),
+      optax.add_decayed_weights(
+        weight_decay=config.adam_weight_decay, 
+        mask=get_weight_decay_mask([
+          "norm",
+          "scale",
+          "bias",
+        ])
+      ),
+      optax.scale_by_learning_rate(learning_rate_schedule),
+    ]
   elif config.opt_type == "adam_pax":
-    optimizer = adam_pax(
-      learning_rate_schedule,
-      beta1=config.adam_b1,
-      beta2=config.adam_b2,
-      epsilon=config.adam_eps,
-      epsilon_root=config.adam_eps_root,
-      weight_decay=config.adam_weight_decay,
-    )
+    optimizer = [
+      adam_pax(
+        learning_rate_schedule,
+        beta1=config.adam_b1,
+        beta2=config.adam_b2,
+        epsilon=config.adam_eps,
+        epsilon_root=config.adam_eps_root,
+        weight_decay=config.adam_weight_decay,
+      )
+    ]
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")
-
+  
+  # gradient_clipping_threshold
+  if config.gradient_clipping_threshold > 0:
+    optimizer = [
+      optax.clip_by_global_norm(config.gradient_clipping_threshold)
+    ] + optimizer
+  
+  optimizer = optax.chain(*optimizer)
+  
+  # gradient_accumulation_steps
   if config.gradient_accumulation_steps > 1:
     optimizer = optax.MultiSteps(
         optimizer, config.gradient_accumulation_steps
@@ -181,12 +200,22 @@ def get_optimizer(config):
 
 
 def tiger_pax(
-  learning_rate: optax.Schedule,
+  base_learning_rate: optax.Schedule,
   beta: float,
   mu_dtype = None,
   weight_decay: float = 1e-3,
+  gradient_accumulation_steps: int = 1,
 ):
-  
+  #  learning_rate mask
+  def final_schedule(step):
+    lr = base_learning_rate(step)
+    lr = jnp.where(
+      (step % gradient_accumulation_steps) == (gradient_accumulation_steps - 1), 
+      lr,
+      jnp.zeros_like(lr),
+    )
+    return lr
+
   mu_dtype = utils.canonicalize_dtype(mu_dtype)
 
   def base_init_fn(params):
@@ -200,7 +229,12 @@ def tiger_pax(
     params=None
   ):
     del params
-    mu = optax.update_moment(updates, state.mu, beta, 1)
+    beta1 = jnp.where(state.count % gradient_accumulation_steps == 0, beta, jnp.ones_like(beta))
+    beta2 = (1 - beta) / gradient_accumulation_steps
+    mu = jax.tree_util.tree_map(
+      lambda g, t: beta1 * t + beta2 * g, 
+      updates, state.mu
+    )
     mu = utils.cast_tree(mu, mu_dtype)
     updates_new = jax.tree_util.tree_map(lambda m: jnp.sign(m), mu)
     count_inc = optax.safe_int32_increment(state.count)
@@ -254,8 +288,8 @@ def tiger_pax(
       ])
     ),
     optax.GradientTransformation(trust_ratio_init_fn, trust_ratio_update_fn),
-    optax.scale_by_learning_rate(learning_rate),
-  )
+    optax.scale_by_learning_rate(final_schedule),
+  ), final_schedule
   
 
 def adam_pax(

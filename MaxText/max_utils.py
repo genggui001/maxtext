@@ -421,7 +421,6 @@ def setup_initial_state(model, data_iterator, tx, config, rng, mesh, checkpoint_
 def create_learning_rate_schedule(
   config, 
   step_reduction=1,
-  update_step=1,
 ):
   """Creates a warmup and cosine decay learning rate schedule:
   We take inspiration from Llama2's learning rate (LR) schedule, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
@@ -455,9 +454,6 @@ def create_learning_rate_schedule(
   print(f"cos_steps: {cos_steps}")
   print(f"constant_zero_steps: {constant_zero_steps}")
 
-  assert warmup_steps % update_step == 0, "warmup_steps mod update_step == 0"
-  assert cos_steps % update_step == 0, "cos_steps mod update_step == 0"
-
   warmup_schedule = optax.linear_schedule(
       init_value=0.0,
       end_value=lr,
@@ -476,15 +472,8 @@ def create_learning_rate_schedule(
     pieces.append(constant_schedule)
     boundaries.append(warmup_steps + cos_steps + constant_zero_steps)
 
-  _final_schedule = optax.join_schedules(pieces, boundaries)
 
-  def final_schedule(step):
-    lr = _final_schedule(step)
-    lr = lr * ((step % update_step) == (update_step-1))
-    # jax.debug.print("learning rate step = {step}, learning_rate = {lr}", step=step, lr=lr)
-    return lr
-
-  return final_schedule
+  return optax.join_schedules(pieces, boundaries)
 
 
 # Cross entropy implementation is taken from original T5X codebase:

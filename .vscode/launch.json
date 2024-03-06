@@ -25,12 +25,22 @@
       "justMyCode": false,
       "python": "python3",
       "program": "${workspaceFolder}/MaxText/train.py",
-      "args": ["MaxText/configs/base.yml", 
-               "run_name=runner_$(date +%Y-%m-%d-%H-%M)", 
-               "base_output_directory=gs://test-maxtext-output",
-               "dataset_path=gs://test-maxtext-dataset",
-               "steps=2",
-               "enable_checkpointing=false"]
+      "args": [
+        "MaxText/configs/base.yml", 
+        "run_name=runner_$(date +%Y-%m-%d-%H-%M)", 
+        "model_name=llama2-7b-add-chinese",
+        "ici_tensor_parallelism=4",
+        "steps=262144000",
+        "warmup_steps_fraction=0.00000048828125",
+        "eval_interval=16384",
+        "checkpoint_period=16384",
+        "max_target_length=2048",
+        "per_device_batch_size=0.125",
+        "gradient_accumulation_steps=32",
+        "base_output_directory=/home/genggui001/code/maxtext/tmp/llama2-7b-add-chinese",
+        "dataset_path=/home/genggui001/gdrive/gg-nlp-lm-new",
+        "attention=dot_product"
+      ]
     }
   ]
 }
