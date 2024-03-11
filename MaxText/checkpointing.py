@@ -31,6 +31,8 @@ def create_orbax_checkpoint_manager(
     enable_checkpointing: bool,
     use_async: bool,
     save_interval_steps: int,
+    save_best: bool = False,
+    max_to_keep: int = None,
     dataset_type: Optional[str] = 'c4'
 ):
   """Returns specified Orbax (async or not) CheckpointManager or None if checkpointing is disabled."""
@@ -50,6 +52,9 @@ def create_orbax_checkpoint_manager(
       item_names = item_names,
       options = CheckpointManagerOptions(
           create=True,
+          max_to_keep=max_to_keep,
+          best_fn=lambda metrics: metrics['loss'] if save_best else None, 
+          best_mode='min',
           save_interval_steps=save_interval_steps,
           enable_async_checkpointing=use_async,
       )

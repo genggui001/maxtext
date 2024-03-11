@@ -167,16 +167,16 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
       )
       writer.flush()
 
-def save_checkpoint(checkpoint_manager, step, state, dataset_type='c4', data_iterator=None):
+def save_checkpoint(checkpoint_manager, step, state, dataset_type='c4', data_iterator=None, metrics=None):
   """Wrapper for saving checkpoint"""
   if dataset_type == 'c4-array_record':
     return checkpoint_manager.save(step, args=orbax.checkpoint.args.Composite(
                                                     default=orbax.checkpoint.args.StandardSave(state),
                                                     iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator)
-                                                    ))
+                                                    ), metrics=metrics)
   else:
     return checkpoint_manager.save(step, args=orbax.checkpoint.args.Composite(
-                                                    default=orbax.checkpoint.args.StandardSave(state)))
+                                                    default=orbax.checkpoint.args.StandardSave(state)), metrics=metrics)
 # -----------------------------------------------------------------------------
 # Top-level Functions
 # -----------------------------------------------------------------------------
@@ -328,6 +328,8 @@ def setup_mesh_and_model(config):
       config.enable_checkpointing,
       config.async_checkpointing,
       config.checkpoint_period,
+      config.checkpoint_save_best,
+      config.checkpoint_max_to_keep,
       config.dataset_type,
   )
   # Mesh definition
@@ -457,17 +459,9 @@ def train_loop(config, state=None):
     record_scalar_metrics(metrics, new_time - last_step_completion,  per_device_tflops, learning_rate_schedule)
     last_step_completion = new_time
 
-    if checkpoint_manager is not None:
-      if save_checkpoint(checkpoint_manager, step, state, config.dataset_type, data_iterator):
-        max_logging.log(f"saved a checkpoint at step {step}")
-
-      # Upon preemption, exit when and only when all ongoing saves are complete.
-      if checkpoint_manager.reached_preemption(step):
-        checkpoint_manager.wait_until_finished()
-        sys.exit()
-
     write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
 
+    eval_loss = 100000000000.0
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0:
       assert eval_data_iterator
       cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
@@ -480,10 +474,21 @@ def train_loop(config, state=None):
         cumulative_eval_metrics['total_weights'] += float(eval_metrics['scalar']['evaluation/total_weights'])
       eval_loss = cumulative_eval_metrics['total_loss'] / (cumulative_eval_metrics['total_weights'] + EPS)
       max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")
-      if eval_loss <= config.target_eval_loss:
-        max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
-        max_utils.deactivate_profiler(config)
-        break
+
+    if checkpoint_manager is not None:
+      if save_checkpoint(checkpoint_manager, step, state, config.dataset_type, data_iterator, {"loss": eval_loss}):
+        max_logging.log(f"saved a checkpoint at step {step}")
+
+      # Upon preemption, exit when and only when all ongoing saves are complete.
+      if checkpoint_manager.reached_preemption(step):
+        checkpoint_manager.wait_until_finished()
+        sys.exit()
+
+    # Early stop
+    if eval_loss <= config.target_eval_loss:
+      max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
+      max_utils.deactivate_profiler(config)
+      break
 
     if step == last_profiling_step:
       max_utils.deactivate_profiler(config)

@@ -41,6 +41,8 @@ load_full_state_path: ""
 enable_checkpointing: True
 async_checkpointing: True
 checkpoint_period: 10_000
+checkpoint_max_to_keep: 5
+checkpoint_save_best: False
 
 force_unroll: False # during generate_param_only_checkpoint should we unroll the loop?
 ############################### END CHECKPOINTING ##################################

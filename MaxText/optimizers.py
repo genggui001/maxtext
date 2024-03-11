@@ -168,6 +168,7 @@ def get_optimizer(config):
     ]
   elif config.opt_type == "adam_pax":
     optimizer = [
+      optax.identity(),
       adam_pax(
         learning_rate_schedule,
         beta1=config.adam_b1,
