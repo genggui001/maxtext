@@ -31,8 +31,8 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  ici_tensor_parallelism=4 \
  steps=262144000 \
  warmup_steps_fraction=0 \
- eval_interval=512 \
- checkpoint_period=512 \
+ eval_interval=16384 \
+ checkpoint_period=16384 \
  checkpoint_max_to_keep=2 \
  checkpoint_save_best=True \
  max_target_length=4096 \
