@@ -33,9 +33,9 @@ eval_dataset_size: 1024
 weight_dtype: "bfloat16"
 
 
-opt_type: tiger
-adam_b1: 0.965
-adam_b2: 0.965
-adam_weight_decay: 0.01
-learning_rate: 1.76e-3
-gradient_clipping_threshold: 0.0
+# opt_type: tiger
+# adam_b1: 0.965
+# adam_b2: 0.965
+# adam_weight_decay: 0.1
+# learning_rate: 1.76e-3
+# gradient_clipping_threshold: 0.0
