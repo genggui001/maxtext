@@ -55,7 +55,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  max_target_length=$max_target_length \
  per_device_batch_size=$per_device_batch_size \
  gradient_accumulation_steps=$gradient_accumulation_steps \
- base_output_directory=/home/genggui001/code/maxtext/tmp/llama2-1_6b-add-chinese  \
+ base_output_directory=gs://genggui001-europe-west4/llm_checkpoints/llama2-1_6b-add-chinese  \
  dataset_path=${dataset_path} \
  attention=dot_product \
  opt_type=adamw \
@@ -63,5 +63,4 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  adam_b2=0.95 \
  adam_weight_decay=0.1 \
  learning_rate=3e-4
-
 
