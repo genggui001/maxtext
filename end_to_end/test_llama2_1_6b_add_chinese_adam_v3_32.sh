@@ -44,6 +44,7 @@ export LIBTPU_INIT_ARGS="TPU_MEGACORE=MEGACORE_DENSE"
 python3 -u MaxText/train.py MaxText/configs/base.yml \
  run_name=runner_${idx} \
  model_name='llama2-1_6b-add-chinese' \
+ ici_data_parallelism=-1 \
  ici_fsdp_parallelism=8 \
  steps=$forward_steps \
  warmup_steps=$forward_warmup_steps \
