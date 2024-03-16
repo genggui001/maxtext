@@ -45,7 +45,6 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  run_name=runner_${idx} \
  model_name='llama2-1_6b-add-chinese' \
  ici_fsdp_parallelism=8 \
- ici_tensor_parallelism=1 \
  steps=$forward_steps \
  warmup_steps=$forward_warmup_steps \
  eval_interval=$eval_interval \
