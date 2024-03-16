@@ -39,7 +39,7 @@ echo "eval_interval=$eval_interval"
 
 echo "----------------------------------------runner_${idx}--------------------------------------------------"
 
-export LIBTPU_INIT_ARGS="--xla_enable_async_all_gather=true TPU_MEGACORE=MEGACORE_DENSE"
+export LIBTPU_INIT_ARGS="TPU_MEGACORE=MEGACORE_DENSE"
 
 python3 -u MaxText/train.py MaxText/configs/base.yml \
  run_name=runner_${idx} \
