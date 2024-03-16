@@ -24,6 +24,7 @@ import chex
 
 import optax
 from optax._src import utils as optax_utils
+from optax._src import linear_algebra as optax_linear_algebra
 import jax.numpy as jnp
 import numpy as np
 
@@ -121,6 +122,7 @@ def get_optimizer(config):
       beta=config.adam_b1,
       weight_decay=config.adam_weight_decay,
       gradient_accumulation_steps=config.gradient_accumulation_steps,
+      gradient_clipping_threshold=config.gradient_clipping_threshold,
     ), learning_rate_schedule
 
   if config.opt_type == "sgd":
@@ -151,18 +153,11 @@ def get_optimizer(config):
     ]
   elif config.opt_type == "lion":
     optimizer = [
-      optax.scale_by_lion(
+      scale_by_lion(
         b1=config.adam_b1,
         b2=config.adam_b2,
-        mu_dtype=None,
-      ),
-      optax.add_decayed_weights(
         weight_decay=config.adam_weight_decay, 
-        mask=get_weight_decay_mask([
-          "norm",
-          "scale",
-          "bias",
-        ])
+        mu_dtype=None,
       ),
       optax.scale_by_learning_rate(learning_rate_schedule),
     ]
@@ -197,6 +192,86 @@ def get_optimizer(config):
 
   return optimizer, learning_rate_schedule
 
+# scale_by_lion by genggui001
+def scale_by_lion(
+    b1: float = 0.9,
+    b2: float = 0.99,
+    weight_decay: float = 1e-3,
+    powerball_gamma: float = 0.5,
+    mu_dtype = None,
+):
+
+  mu_dtype = optax_utils.canonicalize_dtype(mu_dtype)
+
+  def init_fn(params):
+    mu = jax.tree_util.tree_map(  # moment
+        lambda t: jnp.zeros_like(t, dtype=mu_dtype), params)
+    return optax.ScaleByLionState(count=jnp.zeros([], jnp.int32), mu=mu)
+
+  def update_fn(updates, state: optax.ScaleByLionState, params=None):
+
+    def _name_update(name, g, m, p):
+      # base update
+      u = (1. - b1) * g + b1 * m
+      if (
+        "embedding" in name
+        or "logits_dense" in name
+      ):
+        u = jnp.sign(u) * (jnp.abs(u) ** powerball_gamma)
+        print((name, "use powerball sign"))
+      else:
+        u = jnp.sign(u)
+        print((name, "use sign"))
+
+      # decayed_weights
+      if (
+        "norm" in name
+        or "scale" in name
+        or "bias" in name
+      ):
+        u = u
+        print((name, "not use weight decay"))
+      else:
+        u = u + weight_decay * p
+        print((name, "use weight decay"))
+      
+      return u
+
+      # # scale
+      # if (
+      #   "norm" in name
+      #   or "scale" in name
+      #   or "bias" in name
+      # ):
+      #   print((name, p.shape, "use 0.5 scale"))
+      #   scale = 0.5
+      # elif (
+      #   "layers" in name
+      # ):
+      #   mean_axis = [d for d in range(p.ndim) if d != 1]
+      #   print((name, p.shape, f"use layers root_mean_square at axis={mean_axis} scale"))
+      #   p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
+      #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
+      # else:
+      #   print((name, p.shape, "use base root_mean_square scale"))
+      #   p_norm = safe_root_mean_squares(p, min_rms=0.)
+      #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
+      
+      # return scale * u
+
+    updates_new = named_tree_map(_name_update, updates, state.mu, params, sep='/')
+    
+    jax.tree_util.tree_map(
+        lambda g, m: jnp.sign((1. - b1) * g + b1 * m), updates, state.mu)
+
+    mu = optax.update_moment(updates, state.mu, b2, 1)
+    mu = optax_utils.cast_tree(mu, mu_dtype)
+    count_inc = optax_utils.safe_int32_increment(state.count)
+    return updates_new, optax.ScaleByLionState(count=count_inc, mu=mu)
+
+  return optax.GradientTransformation(init_fn, update_fn)
+
+
 class TigerState(NamedTuple):
   """State for the Lion algorithm."""
   count: chex.Array  # shape=(), dtype=jnp.int32.
@@ -210,6 +285,7 @@ def tiger_pax(
   mu_dtype = None,
   weight_decay: float = 1e-3,
   gradient_accumulation_steps: int = 1,
+  gradient_clipping_threshold: float = 0.0, 
 ):
   mu_dtype = optax_utils.canonicalize_dtype(mu_dtype)
 
@@ -227,6 +303,16 @@ def tiger_pax(
     state: TigerState, 
     params=None,
   ):
+    # no use
+    # if gradient_clipping_threshold > 0.0:
+    #   g_norm = optax_linear_algebra.global_norm(updates)
+    #   trigger = jnp.squeeze(g_norm < gradient_clipping_threshold)
+    #   chex.assert_shape(trigger, ())
+    #   def clip_fn(t):
+    #     return jax.lax.select(trigger, t, (t / g_norm.astype(t.dtype)) * gradient_clipping_threshold)
+
+    #   updates = jax.tree_util.tree_map(clip_fn, updates)
+
     beta1 = jnp.where(state.mini_step == 0, beta, jnp.ones_like(beta))
     beta2 = (1 - beta) / gradient_accumulation_steps
     new_mu = jax.tree_util.tree_map(
@@ -262,27 +348,27 @@ def tiger_pax(
           u = u + weight_decay * p
           print((name, "use weight decay"))
           
-        # scale
-        if (
-          "norm" in name
-          or "scale" in name
-          or "bias" in name
-        ):
-          print((name, p.shape, "use 0.5 scale"))
-          scale = 0.5
-        elif (
-          "layers" in name
-        ):
-          mean_axis = [d for d in range(p.ndim) if d != 1]
-          print((name, p.shape, f"use layers root_mean_square at axis={mean_axis} scale"))
-          p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
-          scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
-        else:
-          print((name, p.shape, "use base root_mean_square scale"))
-          p_norm = safe_root_mean_squares(p, min_rms=0.)
-          scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
+        # # scale
+        # if (
+        #   "norm" in name
+        #   or "scale" in name
+        #   or "bias" in name
+        # ):
+        #   print((name, p.shape, "use 0.5 scale"))
+        #   scale = 0.5
+        # elif (
+        #   "layers" in name
+        # ):
+        #   mean_axis = [d for d in range(p.ndim) if d != 1]
+        #   print((name, p.shape, f"use layers root_mean_square at axis={mean_axis} scale"))
+        #   p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
+        #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
+        # else:
+        #   print((name, p.shape, "use base root_mean_square scale"))
+        #   p_norm = safe_root_mean_squares(p, min_rms=0.)
+        #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
 
-        return jnp.array(step_size, dtype=u.dtype) * scale * u
+        return jnp.array(step_size, dtype=u.dtype) * u
 
       return named_tree_map(_name_update, mu, params, sep='/'), optax.safe_int32_increment(count)
 

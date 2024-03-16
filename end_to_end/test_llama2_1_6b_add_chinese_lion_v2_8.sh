@@ -58,9 +58,9 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  base_output_directory=/home/genggui001/code/maxtext/tmp/llama2-1_6b-add-chinese  \
  dataset_path=${dataset_path} \
  attention=dot_product \
- opt_type=tiger \
- adam_b1=0.965 \
- adam_b2=0.965 \
+ opt_type=lion \
+ adam_b1=0.95 \
+ adam_b2=0.98 \
  adam_weight_decay=0.025 \
  learning_rate=2.5e-05
 
