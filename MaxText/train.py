@@ -98,7 +98,7 @@ def load_next_batch(train_iter, example_batch, config):
   else:
     return next(train_iter)
 
-def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, learning_rate_schedule):
+def record_scalar_metrics(metrics, step_time_delta, per_device_tflops):
   """Records scalar metrics to be written to tensorboard"""
   metrics['scalar'].update({
       'perf/step_time_seconds': step_time_delta.total_seconds()
@@ -111,7 +111,6 @@ def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, learning_
           per_device_tflops /
           step_time_delta.total_seconds()
   })
-  metrics['scalar'].update({'learning/current_learning_rate': learning_rate_schedule(metrics['scalar']['learning/opt_count'])})
 
 _buffered_step = None
 _buffered_metrics = None
@@ -279,12 +278,19 @@ def train_step(model, config, state, data, dropout_rng):
   else:
     opt_count = opt_state.count
 
+  """learning rate schedule"""
+  learning_rate_schedule = max_utils.create_learning_rate_schedule(
+    config, 
+    step_reduction=config.gradient_accumulation_steps,
+  )
+
   metrics = {
     'scalar': {
       'learning/loss': loss, 
       'learning/raw_grad_norm': max_utils.l2norm_pytree(raw_grads),
       'learning/param_norm': max_utils.l2norm_pytree(new_state.params),
       'learning/opt_count': opt_count,
+      'learning/current_learning_rate': learning_rate_schedule(opt_count)
     }, 
     'scalars': {}
   }
@@ -380,7 +386,7 @@ def train_loop(config, state=None):
   Returns:
   """
   ( init_rng, writer, checkpoint_manager, state_mesh_annotations, model,
-  mesh, learning_rate_schedule, data_iterator, eval_data_iterator, state) = setup_train_loop(config)
+  mesh, _, data_iterator, eval_data_iterator, state) = setup_train_loop(config)
   # pylint: disable=line-too-long
   functional_train, in_shard_train, out_shard_train, static_argnums_train, donate_argnums_train = maxtext_utils.get_functional_train_with_signature(
     train_step,
@@ -456,7 +462,7 @@ def train_loop(config, state=None):
       )
 
     new_time = datetime.datetime.now()
-    record_scalar_metrics(metrics, new_time - last_step_completion,  per_device_tflops, learning_rate_schedule)
+    record_scalar_metrics(metrics, new_time - last_step_completion, per_device_tflops)
     last_step_completion = new_time
 
     write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
