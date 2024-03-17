@@ -49,10 +49,10 @@ def find_nans_and_infs(pytree):
   bad_pytree = jax.tree_map(finder, pytree)
   return jax.tree_util.tree_flatten(bad_pytree)
 
-def l2norm_pytree(x):
+def l2norm_pytree(x, dtype=None):
   """L2 norm of a pytree of arrays."""
   return jax.tree_util.tree_reduce(
-      lambda x, y: x + jax.numpy.sum(jax.numpy.square(y)), x, initializer=0.0
+      lambda x, y: x + jax.numpy.sum(jax.numpy.square(y), dtype=dtype), x, initializer=0.0
   ) ** 0.5
 
 def calculate_num_params_from_pytree(params):

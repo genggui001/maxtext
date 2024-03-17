@@ -286,11 +286,11 @@ def train_step(model, config, state, data, dropout_rng):
 
   metrics = {
     'scalar': {
-      'learning/loss': jnp.asarray(loss, jnp.float32), 
-      'learning/raw_grad_norm': jnp.asarray(max_utils.l2norm_pytree(raw_grads), jnp.float32),
-      'learning/param_norm': jnp.asarray(max_utils.l2norm_pytree(new_state.params), jnp.float32),
+      'learning/loss': loss, 
+      'learning/raw_grad_norm': max_utils.l2norm_pytree(raw_grads, jnp.float32),
+      'learning/param_norm': max_utils.l2norm_pytree(new_state.params, jnp.float32),
       'learning/opt_count': opt_count, 
-      'learning/current_learning_rate': jnp.asarray(learning_rate_schedule(opt_count), jnp.float32), 
+      'learning/current_learning_rate': learning_rate_schedule(opt_count), 
     }, 
     'scalars': {}
   }
