@@ -58,6 +58,8 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  base_output_directory=gs://genggui001-europe-west4/llm_checkpoints/llama2-1_6b-add-chinese  \
  dataset_path=${dataset_path} \
  attention=dot_product \
+ norm_head_weight=True \
+ gradient_clipping_threshold=0.0 \
  opt_type=adamw \
  adam_b1=0.9 \
  adam_b2=0.95 \

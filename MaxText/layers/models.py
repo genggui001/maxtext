@@ -296,9 +296,12 @@ class Decoder(nn.Module):
         # Correctly normalize pre-softmax logits for this shared case.
         logits = logits / jnp.sqrt(y.shape[-1])
     else:
-      logits = linears.DenseGeneral(
+      logits = linears.LMHeadGeneral(
           cfg.vocab_size,
-          dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+          dtype=cfg.dtype,
+          norm_head_weight=cfg.norm_head_weight, # for logit training stability
+          norm_epsilon=cfg.normalization_layer_epsilon,
+          logits_in_fp32=cfg.logits_dot_in_fp32, # for logit training stability
           kernel_axes=('embed', 'vocab'),
           name='logits_dense')(y) # We do not quantize the logits matmul.
     logits = nn.with_logical_constraint(

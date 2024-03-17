@@ -58,6 +58,8 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  base_output_directory=/home/genggui001/code/maxtext/tmp/llama2-1_6b-add-chinese  \
  dataset_path=${dataset_path} \
  attention=dot_product \
+ norm_head_weight=True \
+ gradient_clipping_threshold=0.0 \
  opt_type=tiger \
  tiger_b=0.965 \
  tiger_weight_decay=0.025 \

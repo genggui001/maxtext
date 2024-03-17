@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable, Sequence, Tuple, Union, Optional
 
 import flax.linen as nn
 import jax
+import optax
 from jax import lax
 import jax.numpy as jnp
 import common_types
@@ -133,12 +134,95 @@ class DenseGeneral(nn.Module):
           'bias',
           nn.with_logical_partitioning(bias_init, bias_axes),
           bias_shape,
-          jnp.float32,
+          self.dtype,
       )
       bias = jnp.asarray(bias, self.dtype)
       output += bias
     return output
 
+
+class LMHeadGeneral(nn.Module):
+  """A linear transformation with flexible axes.
+
+  Attributes:
+    features: tuple with numbers of output features.
+    axis: tuple with axes to apply the transformation on.
+    dtype: the dtype of the computation (default: float32).
+    kernel_init: initializer function for the weight matrix.
+    use_bias: whether to add bias in linear transformation
+    quant: quantization config, defaults to None implying no quantization.
+  """
+
+  features: Union[Iterable[int], int]
+  axis: Union[Iterable[int], int] = -1
+  dtype: DType = jnp.float32
+  kernel_init: NdInitializer = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
+  kernel_axes: Tuple[str, ...] = ()
+  use_bias: bool = False
+  norm_head_weight: bool = False
+  norm_epsilon: float = 1e-6
+  logits_in_fp32: bool = True
+
+  @nn.compact
+  def __call__(self, inputs: Array) -> Array:
+    """Applies a linear transformation to the inputs along multiple dimensions.
+
+    Args:
+      inputs: The nd-array to be transformed.
+
+    Returns:
+      The transformed input.
+    """
+
+    def compute_dot_general(inputs, kernel, axis, contract_ind):
+      """Computes a dot_general operation that may be quantized."""
+      dot_general = lax.dot_general
+      return dot_general(
+        inputs, kernel, ((axis, contract_ind), ((), ())), precision=None)
+
+    features = _canonicalize_tuple(self.features)
+    axis = _canonicalize_tuple(self.axis)
+
+    inputs = jnp.asarray(inputs, self.dtype)
+    axis = _normalize_axes(axis, inputs.ndim)
+
+    kernel_shape = tuple(inputs.shape[ax] for ax in axis) + features
+    kernel_in_axis = np.arange(len(axis))
+    kernel_out_axis = np.arange(len(axis), len(axis) + len(features))
+    kernel = self.param(
+        'kernel',
+        nn.with_logical_partitioning(self.kernel_init, self.kernel_axes),
+        kernel_shape,
+        self.dtype,
+        kernel_in_axis,
+        kernel_out_axis,
+    )
+    kernel = jnp.asarray(kernel, self.dtype)
+
+    if self.norm_head_weight:
+      kernel_mean2 = jnp.mean(lax.square(kernel), axis=kernel_in_axis, keepdims=True)
+      kernel = jnp.asarray(kernel * lax.rsqrt(kernel_mean2 + self.norm_epsilon), self.dtype)
+
+    contract_ind = tuple(range(0, len(axis)))
+    output = compute_dot_general(inputs, kernel, axis, contract_ind)
+
+    if self.use_bias:
+      bias_axes, bias_shape = self.kernel_axes[-len(features):], kernel_shape[-len(features):]
+      bias = self.param(
+          'bias',
+          nn.with_logical_partitioning(bias_init, bias_axes),
+          bias_shape,
+          self.dtype,
+      )
+      bias = jnp.asarray(bias, output.dtype)
+      output += bias
+
+    if self.logits_in_fp32:
+      output = jnp.asarray(output, jnp.float32)
+    else:
+      output = jnp.asarray(output, self.dtype)
+
+    return output
 
 class MlpBlock(nn.Module):
   """Transformer MLP / feed-forward block.
