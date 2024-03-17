@@ -16,7 +16,7 @@
 
 # pylint: disable=bare-except, consider-using-generator, ungrouped-imports
 """Utils that are only interesting to MaxText. """
-from typing import NamedTuple
+from typing import NamedTuple, Any
 
 import jax
 import re
@@ -117,12 +117,16 @@ def get_optimizer(config):
   )
 
   if config.opt_type == "tiger":
-    return tiger_pax(
+    return tiger_adam_pax(
       learning_rate=learning_rate_schedule,
-      beta=config.adam_b1,
-      weight_decay=config.adam_weight_decay,
+      tiger_beta=config.tiger_b,
+      tiger_weight_decay=config.tiger_weight_decay,
+      adam_b1=config.adam_b1,
+      adam_b2=config.adam_b2,
+      adam_eps=config.adam_eps,
+      adam_eps_root=config.adam_eps_root,
+      adam_weight_decay=config.adam_weight_decay,
       gradient_accumulation_steps=config.gradient_accumulation_steps,
-      gradient_clipping_threshold=config.gradient_clipping_threshold,
     ), learning_rate_schedule
 
   if config.opt_type == "sgd":
@@ -148,16 +152,6 @@ def get_optimizer(config):
           "scale",
           "bias",
         ])
-      ),
-      optax.scale_by_learning_rate(learning_rate_schedule),
-    ]
-  elif config.opt_type == "lion":
-    optimizer = [
-      scale_by_lion(
-        b1=config.adam_b1,
-        b2=config.adam_b2,
-        weight_decay=config.adam_weight_decay, 
-        mu_dtype=None,
       ),
       optax.scale_by_learning_rate(learning_rate_schedule),
     ]
@@ -192,84 +186,101 @@ def get_optimizer(config):
 
   return optimizer, learning_rate_schedule
 
-# scale_by_lion by genggui001
-def scale_by_lion(
-    b1: float = 0.9,
-    b2: float = 0.99,
-    weight_decay: float = 1e-3,
-    powerball_gamma: float = 0.5,
-    mu_dtype = None,
+def tiger_adam_pax(
+  learning_rate: optax.Schedule,
+  tiger_beta: float,
+  tiger_weight_decay: float = 1e-3,
+  adam_learning_rate_fraction: float = 10.0,
+  adam_b1: float = 0.9,
+  adam_b2: float = 0.95,
+  adam_eps: float = 1.e-8,
+  adam_eps_root: float = 0.,
+  adam_weight_decay: float = 0.1,
+  mu_dtype = None,
+  gradient_accumulation_steps: int = 1,
 ):
+  # tiger
+  tiger_optimizer = tiger_pax(
+    learning_rate=learning_rate,
+    beta=tiger_beta,
+    mu_dtype=mu_dtype,
+    weight_decay=tiger_weight_decay,
+    gradient_accumulation_steps=gradient_accumulation_steps,
+  )
 
-  mu_dtype = optax_utils.canonicalize_dtype(mu_dtype)
+  # adam
+  def adam_learning_rate(step):
+    return learning_rate(step) * adam_learning_rate_fraction
 
-  def init_fn(params):
-    mu = jax.tree_util.tree_map(  # moment
-        lambda t: jnp.zeros_like(t, dtype=mu_dtype), params)
-    return optax.ScaleByLionState(count=jnp.zeros([], jnp.int32), mu=mu)
+  adam_optimizer = optax.chain(
+    optax.scale_by_adam(
+      b1=adam_b1,
+      b2=adam_b2,
+      eps=adam_eps,
+      eps_root=adam_eps_root,
+      mu_dtype=None,
+      nesterov=False,
+    ),
+    optax.add_decayed_weights(
+      weight_decay=adam_weight_decay, 
+      mask=get_weight_decay_mask([
+        "norm",
+        "scale",
+        "bias",
+      ])
+    ),
+    optax.scale_by_learning_rate(adam_learning_rate),
+  )
 
-  def update_fn(updates, state: optax.ScaleByLionState, params=None):
+  if gradient_accumulation_steps > 1:
+    adam_optimizer = optax.MultiSteps(
+        adam_optimizer, gradient_accumulation_steps
+    )
 
-    def _name_update(name, g, m, p):
-      # base update
-      u = (1. - b1) * g + b1 * m
-      if (
-        "embedding" in name
-        or "logits_dense" in name
-      ):
-        u = jnp.sign(u) * (jnp.abs(u) ** powerball_gamma)
-        print((name, "use powerball sign"))
-      else:
-        u = jnp.sign(u)
-        print((name, "use sign"))
-
-      # decayed_weights
-      if (
-        "norm" in name
-        or "scale" in name
-        or "bias" in name
-      ):
-        u = u
-        print((name, "not use weight decay"))
-      else:
-        u = u + weight_decay * p
-        print((name, "use weight decay"))
-      
-      return u
-
-      # # scale
-      # if (
-      #   "norm" in name
-      #   or "scale" in name
-      #   or "bias" in name
-      # ):
-      #   print((name, p.shape, "use 0.5 scale"))
-      #   scale = 0.5
-      # elif (
-      #   "layers" in name
-      # ):
-      #   mean_axis = [d for d in range(p.ndim) if d != 1]
-      #   print((name, p.shape, f"use layers root_mean_square at axis={mean_axis} scale"))
-      #   p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
-      #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
-      # else:
-      #   print((name, p.shape, "use base root_mean_square scale"))
-      #   p_norm = safe_root_mean_squares(p, min_rms=0.)
-      #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
-      
-      # return scale * u
-
-    updates_new = named_tree_map(_name_update, updates, state.mu, params, sep='/')
+  # 融合召唤
+  def is_emb(name):
+    if (
+      "embedding" in name
+      or "logits_dense" in name
+    ):
+      return True
     
-    jax.tree_util.tree_map(
-        lambda g, m: jnp.sign((1. - b1) * g + b1 * m), updates, state.mu)
+    return False
 
-    mu = optax.update_moment(updates, state.mu, b2, 1)
-    mu = optax_utils.cast_tree(mu, mu_dtype)
-    count_inc = optax_utils.safe_int32_increment(state.count)
-    return updates_new, optax.ScaleByLionState(count=count_inc, mu=mu)
+  def mixed_init_fn(params):
+    emb_params = named_tree_map(lambda n, p: p if is_emb(n) else None, params, sep='/')
+    trunk_params = named_tree_map(lambda n, p: None if is_emb(n) else p, params, sep='/')
+    return (
+      adam_optimizer.init(emb_params), 
+      tiger_optimizer.init(trunk_params), 
+    )
 
-  return optax.GradientTransformation(init_fn, update_fn)
+  def mixed_update_fn(
+    updates, 
+    state, 
+    params,
+  ):
+    emb_updates = named_tree_map(lambda n, u: u if is_emb(n) else None, updates, sep='/')
+    trunk_updates = named_tree_map(lambda n, u: None if is_emb(n) else u, updates, sep='/')
+
+    emb_params = named_tree_map(lambda n, p: p if is_emb(n) else None, params, sep='/')
+    trunk_params = named_tree_map(lambda n, p: None if is_emb(n) else p, params, sep='/')
+
+    emb_state, trunk_state = state
+
+    # use update
+    emb_updates, emb_new_state = adam_optimizer.update(emb_updates, emb_state, emb_params)
+    trunk_updates, trunk_new_state = tiger_optimizer.update(trunk_updates, trunk_state, trunk_params)
+
+    # mixed update
+    updates = named_tree_map(lambda n, u, eu, tu: eu if is_emb(n) else tu, updates, emb_updates, trunk_updates, sep='/')
+
+    return updates, (
+      emb_new_state, 
+      trunk_new_state, 
+    )
+
+  return optax.GradientTransformation(mixed_init_fn, mixed_update_fn)
 
 
 class TigerState(NamedTuple):
@@ -281,11 +292,9 @@ class TigerState(NamedTuple):
 def tiger_pax(
   learning_rate: optax.Schedule,
   beta: float,
-  powerball_gamma: float = 0.5,
   mu_dtype = None,
   weight_decay: float = 1e-3,
   gradient_accumulation_steps: int = 1,
-  gradient_clipping_threshold: float = 0.0, 
 ):
   mu_dtype = optax_utils.canonicalize_dtype(mu_dtype)
 
@@ -303,16 +312,6 @@ def tiger_pax(
     state: TigerState, 
     params=None,
   ):
-    # no use
-    # if gradient_clipping_threshold > 0.0:
-    #   g_norm = optax_linear_algebra.global_norm(updates)
-    #   trigger = jnp.squeeze(g_norm < gradient_clipping_threshold)
-    #   chex.assert_shape(trigger, ())
-    #   def clip_fn(t):
-    #     return jax.lax.select(trigger, t, (t / g_norm.astype(t.dtype)) * gradient_clipping_threshold)
-
-    #   updates = jax.tree_util.tree_map(clip_fn, updates)
-
     beta1 = jnp.where(state.mini_step == 0, beta, jnp.ones_like(beta))
     beta2 = (1 - beta) / gradient_accumulation_steps
     new_mu = jax.tree_util.tree_map(
@@ -326,16 +325,7 @@ def tiger_pax(
 
       def _name_update(name, m, p):
         # base update
-        if (
-          "embedding" in name
-          or "logits_dense" in name
-        ):
-          u = jnp.sign(m) * (jnp.abs(m) ** powerball_gamma)
-          print((name, "use powerball sign"))
-        else:
-          u = jnp.sign(m)
-          print((name, "use sign"))
-
+        u = jnp.sign(m)
         # decayed_weights
         if (
           "norm" in name
@@ -343,36 +333,17 @@ def tiger_pax(
           or "bias" in name
         ):
           u = u
-          print((name, "not use weight decay"))
+          print((name, "not use weight decay in tiger"))
         else:
           u = u + weight_decay * p
-          print((name, "use weight decay"))
+          print((name, "use weight decay in tiger"))
           
-        # # scale
-        # if (
-        #   "norm" in name
-        #   or "scale" in name
-        #   or "bias" in name
-        # ):
-        #   print((name, p.shape, "use 0.5 scale"))
-        #   scale = 0.5
-        # elif (
-        #   "layers" in name
-        # ):
-        #   mean_axis = [d for d in range(p.ndim) if d != 1]
-        #   print((name, p.shape, f"use layers root_mean_square at axis={mean_axis} scale"))
-        #   p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
-        #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
-        # else:
-        #   print((name, p.shape, "use base root_mean_square scale"))
-        #   p_norm = safe_root_mean_squares(p, min_rms=0.)
-        #   scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
-
         return jnp.array(step_size, dtype=u.dtype) * u
 
       return named_tree_map(_name_update, mu, params, sep='/'), optax.safe_int32_increment(count)
 
     def _skip_update(mu, params, count):
+      del params
       return jax.tree_util.tree_map(lambda t: jnp.zeros_like(t), mu), count
     
     updates_new, count_new = jax.lax.cond(
@@ -386,10 +357,7 @@ def tiger_pax(
       mu=new_mu,
     )
 
-  return optax.chain(
-    optax.identity(),
-    optax.GradientTransformation(base_init_fn, base_update_fn),
-  )
+  return optax.GradientTransformation(base_init_fn, base_update_fn)
   
 
 def adam_pax(

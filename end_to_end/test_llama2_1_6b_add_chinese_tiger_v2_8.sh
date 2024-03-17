@@ -59,8 +59,10 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  dataset_path=${dataset_path} \
  attention=dot_product \
  opt_type=tiger \
- adam_b1=0.965 \
- adam_b2=0.965 \
- adam_weight_decay=0.025 \
+ tiger_b=0.965 \
+ tiger_weight_decay=0.025 \
+ adam_b1=0.9 \
+ adam_b2=0.95 \
+ adam_weight_decay=0.1 \
  learning_rate=2.5e-05
 
