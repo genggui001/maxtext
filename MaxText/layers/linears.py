@@ -200,8 +200,8 @@ class LMHeadGeneral(nn.Module):
     kernel = jnp.asarray(kernel, self.dtype)
 
     if self.norm_head_weight:
-      kernel_mean2 = jnp.mean(lax.square(kernel), axis=kernel_in_axis, keepdims=True)
-      kernel = jnp.asarray(kernel * lax.rsqrt(kernel_mean2 + self.norm_epsilon), self.dtype)
+      kernel_sum2 = jnp.sum(lax.square(kernel), axis=kernel_in_axis, keepdims=True)
+      kernel = jnp.asarray(kernel * lax.rsqrt(kernel_sum2 + self.norm_epsilon), self.dtype)
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)
