@@ -7,12 +7,12 @@ idx=$(date +%Y-%m-%d-%H-%M)
 dataset_path=/home/genggui001/gdrive/gg-nlp-lm-new
 
 
-all_token=1073741824000
-all_batch_token=2097152
+all_token=536870912000
+all_batch_token=1048576
 
 max_target_length=4096
 devices=16
-per_device_batch_size=16
+per_device_batch_size=8
 
 warmup_steps=2000
 
