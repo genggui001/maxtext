@@ -809,6 +809,7 @@ class Attention(nn.Module):
   def key_rotary(self, key: Array, inputs_positions: Array):
     """Apply Rotary Embedding to key."""
     key = RotaryEmbedding(
+      max_timescale=self.config.rope_base,
       embedding_dims=self.head_dim,
       name='key_rotary')(inputs=key, position=inputs_positions)
     return key
@@ -854,6 +855,7 @@ class Attention(nn.Module):
 
     # apply ROPE
     query = RotaryEmbedding(
+        max_timescale=self.config.rope_base,
         embedding_dims=self.head_dim, name='query_rotary'
     )(inputs=query, position=inputs_positions)
     key = self.key_rotary(key, inputs_positions)
