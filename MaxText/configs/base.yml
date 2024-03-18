@@ -224,6 +224,8 @@ adam_weight_decay: 0.1 # AdamW Weight decay
 tiger_b: 0.965 # Exponential decay rate to track the first moment of past gradients.
 tiger_weight_decay: 0.025 # AdamW Weight decay
 
+adam_learning_rate_fraction: 10.0
+
 # Stack trace parameters
 collect_stack_trace: False
 stack_trace_to_cloud: False  # Uploads to cloud logging if True, else to the console if False.

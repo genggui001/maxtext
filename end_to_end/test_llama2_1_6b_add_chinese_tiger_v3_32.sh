@@ -15,7 +15,7 @@ max_target_length=4096
 devices=32
 per_device_batch_size=4
 
-warmup_steps=200
+warmup_steps=2000
 
 forward_steps=$(($all_token / $max_target_length / $devices / $per_device_batch_size))
 gradient_accumulation_steps=$(($all_batch_token / $max_target_length / $devices / $per_device_batch_size))
@@ -63,9 +63,9 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  gradient_clipping_threshold=0.0 \
  opt_type=tiger \
  tiger_b=0.965 \
- tiger_weight_decay=0.025 \
+ tiger_weight_decay=0.005 \
  adam_b1=0.9 \
  adam_b2=0.95 \
  adam_weight_decay=0.1 \
- learning_rate=2.5e-05
-
+ learning_rate=2e-4 \
+ adam_learning_rate_fraction=1.0

@@ -121,6 +121,7 @@ def get_optimizer(config):
       learning_rate=learning_rate_schedule,
       tiger_beta=config.tiger_b,
       tiger_weight_decay=config.tiger_weight_decay,
+      adam_learning_rate_fraction=config.adam_learning_rate_fraction,
       adam_b1=config.adam_b1,
       adam_b2=config.adam_b2,
       adam_eps=config.adam_eps,
