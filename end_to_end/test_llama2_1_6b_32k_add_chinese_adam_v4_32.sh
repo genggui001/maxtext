@@ -11,7 +11,7 @@ all_token=1073741824000
 all_batch_token=2097152
 
 max_target_length=32768
-devices=32
+devices=16
 per_device_batch_size=1
 
 warmup_steps=2000
