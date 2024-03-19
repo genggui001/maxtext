@@ -219,6 +219,17 @@ def load_base_dataset(
 ):
     data_paths = sorted(tf.io.gfile.glob(pattern))
 
+    # shard dataset now
+    print((pattern, "all_file_count", len(data_paths)))
+    data_num_shards = jax.process_count()
+    data_index = jax.process_index()
+    data_paths = [
+        d
+        for i, d in enumerate(data_paths)
+        if i % data_num_shards == data_index
+    ]
+    print((pattern, "share_file_count", data_num_shards, data_index, len(data_paths)))
+
     random.seed(seed)
     random.shuffle(data_paths)
 
@@ -278,14 +289,16 @@ def get_datasets(
     }
 
     # shard the dataset as soon as it is loaded
-    train_ds = train_ds.shard(num_shards=jax.process_count(), index=jax.process_index())
+    # not use
+    # train_ds = train_ds.shard(num_shards=jax.process_count(), index=jax.process_index())
     train_ds = loadjson_and_rekey(
         train_ds, 
         json_specs=dataset_json_spec,
         key_map={"inputs": None, "targets": "text"},
     )
 
-    eval_ds = eval_ds.shard(num_shards=jax.process_count(), index=jax.process_index())
+    # nor use
+    # eval_ds = eval_ds.shard(num_shards=jax.process_count(), index=jax.process_index())
     # note validation_tokenized_5662seqs split is pre tokenized, reduce_concated and splitted to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts
     eval_ds = loadjson_and_rekey(
