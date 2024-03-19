@@ -393,8 +393,8 @@ def preprocess_dataset(
     # same across different iterations.
     eval_ds = eval_ds.cache()
 
-    train_ds = train_ds.prefetch(64)
-    eval_ds = eval_ds.prefetch(64)
+    train_ds = train_ds.prefetch(16)
+    eval_ds = eval_ds.prefetch(16)
 
     train_multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(
         train_ds, global_mesh
