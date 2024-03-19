@@ -47,6 +47,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  model_name='llama2-1_6b-add-chinese' \
  ici_data_parallelism=-1 \
  ici_fsdp_parallelism=8 \
+ data_shuffle_seed=123456 \
  steps=$forward_steps \
  warmup_steps=$forward_warmup_steps \
  eval_interval=$eval_interval \
