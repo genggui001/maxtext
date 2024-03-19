@@ -237,7 +237,7 @@ def load_base_dataset(
         data_paths,
         compression_type="GZIP",
         buffer_size=8 * 1024 * 1024,
-        num_parallel_reads=AUTOTUNE,
+        num_parallel_reads=1,
     )
 
     return ds
