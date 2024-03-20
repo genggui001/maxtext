@@ -61,13 +61,13 @@ def get_weight_decay_mask(exclusions):
   """ Return a weight decay mask function that computes the pytree masks
       according to the given exclusion rules.
   """
-  def decay(name, _):
+  def decay(name, p):
     for rule in exclusions:
       if re.search(rule, name) is not None:
-        print((name, "not use weight_decay"))
+        print((name, p.shape, p.dtype, "not use weight_decay"))
         return False
       
-    print((name, "use weight_decay"))
+    print((name, p.shape, p.dtype, "use weight_decay"))
     return True
 
   def weight_decay_mask(params):
@@ -334,10 +334,10 @@ def tiger_pax(
           or "bias" in name
         ):
           u = u
-          print((name, "not use weight decay in tiger"))
+          print((name, p.shape, p.dtype, "not use weight decay in tiger"))
         else:
           u = u + weight_decay * p
-          print((name, "use weight decay in tiger"))
+          print((name, p.shape, p.dtype, "use weight decay in tiger"))
           
         return jnp.array(step_size, dtype=u.dtype) * u
 
