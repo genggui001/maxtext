@@ -71,9 +71,10 @@ def summarize_size_from_pytree(params):
   num_bytes = calculate_bytes_from_pytree(params)
   return num_params, num_bytes, num_bytes/num_params
 
-def activate_profiler(config):
+def activate_profiler(config, optional_postfix=""):
   if config.enable_profiler and (config.upload_all_profiler_results or jax.process_index() == 0):
-    jax.profiler.start_trace(config.tensorboard_dir)
+    output_path = os.path.join(config.tensorboard_dir, optional_postfix)
+    jax.profiler.start_trace(output_path)
 
 def deactivate_profiler(config):
   if config.enable_profiler and (config.upload_all_profiler_results or jax.process_index() == 0):
@@ -396,12 +397,14 @@ def setup_initial_state(model, data_iterator, tx, config, rng, mesh, checkpoint_
                                                 config.load_parameters_path,
                                                 config.load_full_state_path,
                                                 unboxed_abstract_state,
-                                                config.dataset_type)
+                                                config.enable_single_replica_ckpt_restoring,
+                                                config.dataset_type,
+                                                )
 
     if restored:
       if 'iter' in restored and restored['iter'] is not None:
         data_iterator.local_iterator = restored['iter']
-      state = restored['default']
+      state = restored['items']
     else:
       init_state_partial = functools.partial(init_initial_state, model, tx, config, is_training)
       state = jax.jit(
