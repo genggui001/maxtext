@@ -163,6 +163,7 @@ class LMHeadGeneral(nn.Module):
 
   features: Union[Iterable[int], int]
   axis: Union[Iterable[int], int] = -1
+  weight_dtype: DType = jnp.float32
   dtype: DType = jnp.float32
   kernel_init: NdInitializer = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
   kernel_axes: Tuple[str, ...] = ()
@@ -201,7 +202,7 @@ class LMHeadGeneral(nn.Module):
         'kernel',
         nn.with_logical_partitioning(self.kernel_init, self.kernel_axes),
         kernel_shape,
-        self.dtype,
+        self.weight_dtype,
         kernel_in_axis,
         kernel_out_axis,
     )
@@ -220,7 +221,7 @@ class LMHeadGeneral(nn.Module):
           'bias',
           nn.with_logical_partitioning(bias_init, bias_axes),
           bias_shape,
-          self.dtype,
+          self.weight_dtype,
       )
       bias = jnp.asarray(bias, output.dtype)
       output += bias
