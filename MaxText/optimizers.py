@@ -358,7 +358,7 @@ def tiger_pax(
           p = jnp.reshape(p, (old_shape[0], old_shape[1], -1))
           u = jnp.reshape(u, (old_shape[0], old_shape[1], -1))
 
-          print((name, p.shape, p.dtype, f"use layers scale scale", old_shape, p.shape))
+          print((name, p.shape, old_shape, p.dtype, f"use layers scale scale"))
 
           param_norm = optax.safe_norm(p, 0.0, ord=2, axis=(0, 2), keepdims=True)
           update_norm = optax.safe_norm(u, 0.0, ord=2, axis=(0, 2), keepdims=True)
