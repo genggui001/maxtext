@@ -231,6 +231,7 @@ def tiger_adam_pax(
         "bias",
       ])
     ),
+    optax.scale_by_trust_ratio(),
     optax.scale_by_learning_rate(adam_learning_rate),
   )
 
@@ -339,8 +340,36 @@ def tiger_pax(
         else:
           u = u + weight_decay * p
           print((name, p.shape, p.dtype, "use weight decay in tiger"))
+
+        # scale
+        if (
+          "norm" in name
+          or "scale" in name
+          or "bias" in name
+        ):
+          print((name, p.shape, p.dtype, "use 0.5 scale"))
+          scale = 0.5
+        elif (
+          "layers" in name
+        ):
+          mean_axis = [d for d in range(p.ndim) if d != 1]
+          print((name, p.shape, p.dtype, f"use layers root_mean_square at axis={mean_axis} scale"))
+
+          param_norm = optax.safe_norm(p, 0.0, ord=2, axis=mean_axis, keepdims=True)
+          update_norm = optax.safe_norm(u, 0.0, ord=2, axis=mean_axis, keepdims=True)
+          trust_ratio = param_norm / update_norm
+
+          scale = jnp.where(jnp.logical_or(param_norm == 0., update_norm == 0.), jnp.array(1.0, dtype=p.dtype), trust_ratio)
+        else:
+          print((name, p.shape, p.dtype, "use base root_mean_square scale"))
+
+          param_norm = optax.safe_norm(p, 0.0, ord=2)
+          update_norm = optax.safe_norm(u, 0.0, ord=2)
+          trust_ratio = param_norm / update_norm
+
+          scale = jnp.where(jnp.logical_or(param_norm == 0., update_norm == 0.), jnp.array(1.0, dtype=p.dtype), trust_ratio)
           
-        return jnp.array(step_size, dtype=u.dtype) * u
+        return jnp.array(step_size, dtype=u.dtype) * scale * u
 
       return named_tree_map(_name_update, mu, params, sep='/'), optax.safe_int32_increment(count)
 
