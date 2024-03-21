@@ -364,7 +364,9 @@ def tiger_pax(
           update_norm = optax.safe_norm(u, 0.0, ord=2, axis=(0, 2), keepdims=True)
           trust_ratio = param_norm / update_norm
 
+          print(trust_ratio.shape)
           trust_ratio = jnp.reshape(trust_ratio, (1, old_shape[1]) + (1,) * (len(old_shape) - 2))
+          print(trust_ratio.shape)
 
           scale = jnp.where(jnp.logical_or(param_norm == 0., update_norm == 0.), jnp.array(1.0, dtype=p.dtype), trust_ratio)
         else:
