@@ -61,7 +61,8 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  attention=flash \
  rope_base=1000000 \
  norm_head_weight=True \
- gradient_clipping_threshold=0.5 \
+ gradient_clipping_threshold=0.0 \
+ gradient_norm_threshold=1.0 \
  opt_type=adamw \
  adam_b1=0.9 \
  adam_b2=0.95 \

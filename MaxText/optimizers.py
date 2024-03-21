@@ -109,6 +109,43 @@ def safe_root_mean_squares(x, min_rms, axis=None, keepdims=False):
   x = jnp.where(rms <= min_rms, jnp.ones_like(x), x)
   return jnp.where(rms <= min_rms, min_rms, jnp.sqrt(jnp.mean(abs_sq(x), axis=axis, keepdims=keepdims)))
 
+def norm_grad(max_norm: float) -> optax.GradientTransformation:
+  """Clips updates using their global norm.
+
+  References:
+    [Pascanu et al, 2012](https://arxiv.org/abs/1211.5063)
+
+  Args:
+    max_norm: The maximum global norm for an update.
+
+  Returns:
+    A `GradientTransformation` object.
+  """
+
+  def init_fn(params):
+    del params
+    return optax.EmptyState()
+
+  def update_fn(updates, state, params=None):
+    del params
+    def norm_fn(name, t):
+      if (
+        "layers" in name
+      ):
+        print((name, "use layers norm_grad"))
+        sum_axis = [d for d in range(t.ndim) if d != 1]
+        g_norm = jnp.sqrt(jnp.sum(abs_sq(t), axis=sum_axis, keepdims=True))
+      else:
+        print((name, "use base norm_grad"))
+        g_norm = jnp.sqrt(jnp.sum(abs_sq(t)))
+
+      return (t / g_norm) * max_norm
+
+    updates = named_tree_map(norm_fn, updates, sep='/')
+    return updates, state
+
+  return optax.GradientTransformation(init_fn, update_fn)
+
 def get_optimizer(config):
   """learning rate schedule"""
   learning_rate_schedule = create_learning_rate_schedule(
@@ -172,12 +209,20 @@ def get_optimizer(config):
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")
   
-  # gradient_clipping_threshold
   if config.gradient_clipping_threshold > 0:
+    # gradient_clipping_threshold
     optimizer = [
       optax.clip_by_global_norm(config.gradient_clipping_threshold)
     ] + optimizer
-  
+  elif config.gradient_norm_threshold > 0:
+    # gradient_clipping_threshold
+    optimizer = [
+      norm_grad(config.gradient_norm_threshold)
+    ] + optimizer
+
+  print("optimizer: ")
+  print(optimizer)
+
   optimizer = optax.chain(*optimizer)
   
   # gradient_accumulation_steps
