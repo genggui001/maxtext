@@ -352,7 +352,7 @@ def tiger_pax(
         elif (
           "layers" in name
         ):
-          mean_axis = [d for d in range(p.ndim) if d != 1]
+          mean_axis = tuple([d for d in range(p.ndim) if d != 1])
           print((name, p.shape, p.dtype, f"use layers root_mean_square at axis={mean_axis} scale"))
 
           param_norm = optax.safe_norm(p, 0.0, ord=2, axis=mean_axis, keepdims=True)
