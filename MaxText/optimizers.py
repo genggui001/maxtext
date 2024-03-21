@@ -354,19 +354,13 @@ def tiger_pax(
         ):
           old_shape = p.shape
           assert len(old_shape) >= 3
+          print((name, p.shape, p.dtype, f"use layers scale scale"))
 
-          p = jnp.reshape(p, (old_shape[0], old_shape[1], -1))
-          u = jnp.reshape(u, (old_shape[0], old_shape[1], -1))
-
-          print((name, old_shape, p.shape, p.dtype, f"use layers scale scale"))
-
-          param_norm = optax.safe_norm(p, 0.0, ord=2, axis=(0, 2), keepdims=True)
-          update_norm = optax.safe_norm(u, 0.0, ord=2, axis=(0, 2), keepdims=True)
+          param_norm = optax.safe_norm(jnp.reshape(p, (old_shape[0], old_shape[1], -1)), 0.0, ord=2, axis=(0, 2), keepdims=True)
+          update_norm = optax.safe_norm(jnp.reshape(u, (old_shape[0], old_shape[1], -1)), 0.0, ord=2, axis=(0, 2), keepdims=True)
           trust_ratio = param_norm / update_norm
 
-          print(trust_ratio.shape)
           trust_ratio = jnp.reshape(trust_ratio, (1, old_shape[1]) + (1,) * (len(old_shape) - 2))
-          print(trust_ratio.shape)
 
           scale = jnp.where(jnp.logical_or(param_norm == 0., update_norm == 0.), jnp.array(1.0, dtype=p.dtype), trust_ratio)
         else:
