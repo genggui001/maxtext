@@ -15,7 +15,7 @@ max_target_length=4096
 devices=16
 per_device_batch_size=8
 
-warmup_steps=200
+warmup_steps=2000
 
 forward_steps=$(($all_token / $max_target_length / $devices / $per_device_batch_size))
 gradient_accumulation_steps=$(($all_batch_token / $max_target_length / $devices / $per_device_batch_size))
