@@ -352,16 +352,23 @@ def tiger_pax(
         elif (
           "layers" in name
         ):
-          mean_axis = tuple([d for d in range(p.ndim) if d != 1])
-          print((name, p.shape, p.dtype, f"use layers root_mean_square at axis={mean_axis} scale"))
+          old_shape = p.shape
+          assert len(old_shape) >= 3
 
-          param_norm = optax.safe_norm(p, 0.0, ord=2, axis=mean_axis, keepdims=True)
-          update_norm = optax.safe_norm(u, 0.0, ord=2, axis=mean_axis, keepdims=True)
+          print((name, p.shape, p.dtype, f"use layers scale scale"))
+
+          p = jnp.reshape(p, (old_shape[0], old_shape[1], -1))
+          u = jnp.reshape(u, (old_shape[0], old_shape[1], -1))
+
+          param_norm = optax.safe_norm(p, 0.0, ord=2, axis=(0, 2), keepdims=True)
+          update_norm = optax.safe_norm(u, 0.0, ord=2, axis=(0, 2), keepdims=True)
           trust_ratio = param_norm / update_norm
+
+          trust_ratio = jnp.reshape(trust_ratio, (1, old_shape[1]) + (1,) * (old_shape - 2))
 
           scale = jnp.where(jnp.logical_or(param_norm == 0., update_norm == 0.), jnp.array(1.0, dtype=p.dtype), trust_ratio)
         else:
-          print((name, p.shape, p.dtype, "use base root_mean_square scale"))
+          print((name, p.shape, p.dtype, "use base scale scale"))
 
           param_norm = optax.safe_norm(p, 0.0, ord=2)
           update_norm = optax.safe_norm(u, 0.0, ord=2)
