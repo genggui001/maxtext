@@ -128,6 +128,7 @@ def get_optimizer(config):
       adam_eps_root=config.adam_eps_root,
       adam_weight_decay=config.adam_weight_decay,
       gradient_accumulation_steps=config.gradient_accumulation_steps,
+      mu_dtype=jnp.float32,
     ), learning_rate_schedule
 
   if config.opt_type == "sgd":
@@ -143,7 +144,7 @@ def get_optimizer(config):
         b2=config.adam_b2,
         eps=config.adam_eps,
         eps_root=config.adam_eps_root,
-        mu_dtype=None,
+        mu_dtype=jnp.float32,
         nesterov=False,
       ),
       optax.add_decayed_weights(
@@ -339,7 +340,27 @@ def tiger_pax(
           u = u + weight_decay * p
           print((name, p.shape, p.dtype, "use weight decay in tiger"))
           
-        return jnp.array(step_size, dtype=u.dtype) * u
+        # scale
+        if (
+          "norm" in name
+          or "scale" in name
+          or "bias" in name
+        ):
+          print((name, p.shape, p.dtype, "use 0.5 scale"))
+          scale = 0.5
+        elif (
+          "layers" in name
+        ):
+          mean_axis = [d for d in range(p.ndim) if d != 1]
+          print((name, p.shape, p.dtype, f"use layers root_mean_square at axis={mean_axis} scale"))
+          p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
+          scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
+        else:
+          print((name, p.shape, p.dtype, "use base root_mean_square scale"))
+          p_norm = safe_root_mean_squares(p, min_rms=0.)
+          scale = jnp.where(p_norm == 0., jnp.array(1.0, dtype=p.dtype), p_norm)
+
+        return jnp.array(step_size, dtype=u.dtype) * scale * u
 
       return named_tree_map(_name_update, mu, params, sep='/'), optax.safe_int32_increment(count)
 
