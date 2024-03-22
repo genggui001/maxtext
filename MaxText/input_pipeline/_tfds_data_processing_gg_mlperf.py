@@ -228,7 +228,7 @@ def load_base_dataset(
         for i, d in enumerate(data_paths)
         if i % data_num_shards == data_index
     ]
-    random.seed(seed)
+    random.seed(seed + data_index)
     random.shuffle(data_paths)
 
     print((pattern, "share_file_count", data_num_shards, data_index, len(data_paths), data_paths[:2]))
