@@ -194,6 +194,27 @@ def get_optimizer(config):
       ),
       optax.scale_by_learning_rate(learning_rate_schedule),
     ]
+  elif config.opt_type == "lamb":
+    optimizer = [
+      optax.scale_by_adam(
+        b1=config.adam_b1,
+        b2=config.adam_b2,
+        eps=config.adam_eps,
+        eps_root=config.adam_eps_root,
+        mu_dtype=jnp.float32,
+        nesterov=False,
+      ),
+      optax.add_decayed_weights(
+        weight_decay=config.adam_weight_decay, 
+        mask=get_weight_decay_mask([
+          "norm",
+          "scale",
+          "bias",
+        ])
+      ),
+      scale_by_trust_ratio(),
+      optax.scale_by_learning_rate(learning_rate_schedule),
+    ]
   elif config.opt_type == "adam_pax":
     optimizer = [
       optax.identity(),
@@ -221,7 +242,8 @@ def get_optimizer(config):
     ] + optimizer
 
   print("optimizer: ")
-  print(optimizer)
+  for o in enumerate(optimizer):
+    print(o)
 
   optimizer = optax.chain(*optimizer)
   
@@ -232,6 +254,72 @@ def get_optimizer(config):
     )
 
   return optimizer, learning_rate_schedule
+
+def scale_by_trust_ratio(
+    min_norm: float = 0.0,
+    trust_coefficient: float = 1.,
+    eps: float = 0.,
+) -> optax.GradientTransformation:
+  """Scale updates by `trust ratio`.
+
+  References:
+    [You et. al 2020](https://arxiv.org/abs/1904.00962)
+
+  Args:
+    min_norm: Minimum norm for params and gradient norms; by default is zero.
+    trust_coefficient: A multiplier for the trust ratio.
+    eps: Additive constant added to the denominator for numerical stability.
+
+  Returns:
+    A `GradientTransformation` object.
+  """
+
+  def init_fn(params):
+    del params
+    return optax.EmptyState()
+
+  def update_fn(updates, state, params):
+    def _name_scale_update(name, u, p):
+
+      # Clip norms to minimum value, by default no clipping.
+      if (
+        "norm" in name
+        or "scale" in name
+        or "bias" in name
+      ):
+        print((name, p.shape, p.dtype, "use 0.5 scale"))
+        safe_trust_ratio = 0.5
+      elif (
+        "layers" in name
+      ):
+        mean_axis = [d for d in range(p.ndim) if d != 1]
+        print((name, p.shape, p.dtype, f"use layers scale at axis={mean_axis}"))
+
+        param_norm = safe_root_mean_squares(p, min_rms=min_norm, axis=mean_axis, keepdims=True)
+        update_norm = safe_root_mean_squares(u, min_rms=min_norm, axis=mean_axis, keepdims=True)
+
+        safe_trust_ratio = jnp.where(
+          jnp.logical_or(param_norm == 0., update_norm == 0.), 
+          jnp.array(1.0, dtype=p.dtype), 
+          trust_coefficient * param_norm / (update_norm + eps)
+        )
+      else:
+        print((name, p.shape, p.dtype, "use base scale"))
+        param_norm = safe_root_mean_squares(p, min_rms=min_norm)
+        update_norm = safe_root_mean_squares(u, min_rms=min_norm)
+
+        safe_trust_ratio = jnp.where(
+          jnp.logical_or(param_norm == 0., update_norm == 0.), 
+          jnp.array(1.0, dtype=p.dtype), 
+          trust_coefficient * param_norm / (update_norm + eps)
+        )
+      return u * safe_trust_ratio
+
+    updates = named_tree_map(_name_scale_update, updates, params, sep='/')
+    return updates, state
+
+  return optax.GradientTransformation(init_fn, update_fn)
+
 
 def tiger_adam_pax(
   learning_rate: optax.Schedule,
@@ -276,7 +364,7 @@ def tiger_adam_pax(
         "bias",
       ])
     ),
-    optax.scale_by_trust_ratio(),
+    scale_by_trust_ratio(),
     optax.scale_by_learning_rate(adam_learning_rate),
   )
 
