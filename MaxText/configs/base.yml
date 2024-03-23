@@ -230,6 +230,7 @@ adam_eps_root: 0. # A small constant applied to denominator inside the square ro
 adam_weight_decay: 0.1 # AdamW Weight decay
 
 tiger_b: 0.965 # Exponential decay rate to track the first moment of past gradients.
+tiger_powerball_gamma: 0.5
 tiger_weight_decay: 0.025 # AdamW Weight decay
 
 adam_learning_rate_fraction: 10.0

@@ -157,6 +157,7 @@ def get_optimizer(config):
     return tiger_adam_pax(
       learning_rate=learning_rate_schedule,
       tiger_beta=config.tiger_b,
+      tiger_powerball_gamma=config.tiger_powerball_gamma,
       tiger_weight_decay=config.tiger_weight_decay,
       adam_learning_rate_fraction=config.adam_learning_rate_fraction,
       adam_b1=config.adam_b1,
@@ -324,6 +325,7 @@ def scale_by_trust_ratio(
 def tiger_adam_pax(
   learning_rate: optax.Schedule,
   tiger_beta: float,
+  tiger_powerball_gamma: float = 0.5,
   tiger_weight_decay: float = 1e-3,
   adam_learning_rate_fraction: float = 10.0,
   adam_b1: float = 0.9,
@@ -338,6 +340,7 @@ def tiger_adam_pax(
   tiger_optimizer = tiger_pax(
     learning_rate=learning_rate,
     beta=tiger_beta,
+    powerball_gamma=tiger_powerball_gamma,
     mu_dtype=mu_dtype,
     weight_decay=tiger_weight_decay,
     gradient_accumulation_steps=gradient_accumulation_steps,
@@ -428,6 +431,7 @@ class TigerState(NamedTuple):
 def tiger_pax(
   learning_rate: optax.Schedule,
   beta: float,
+  powerball_gamma: float = 0.5,
   mu_dtype = None,
   weight_decay: float = 1e-3,
   gradient_accumulation_steps: int = 1,
@@ -461,7 +465,8 @@ def tiger_pax(
 
       def _name_update(name, m, p):
         # base update
-        u = jnp.sign(m)
+        # u = jnp.sign(m)
+        u = jnp.sign(m) * (jnp.abs(m) ** powerball_gamma)
         # decayed_weights
         if (
           "norm" in name
