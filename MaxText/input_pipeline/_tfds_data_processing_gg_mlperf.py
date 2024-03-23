@@ -62,8 +62,13 @@ def _shift_left_and_pad(tensor, pad_val):
     return v
 
 
-def loadjson_and_rekey(ds, json_specs, key_map=None):
+def loadjson_and_rekey(ds):
     """normalization with key mapping"""
+    json_specs = {
+        "text": tf.TensorSpec(tf.TensorShape([]), tf.string, name="text"),
+    }
+    key_map={"inputs": None, "targets": "text"}
+    text_max_len = 50000000
 
     def _loadjson_and_rekey(x, json_specs, key_map=None):
         """Replace the feature keys according to the mapping in `key_map`.
@@ -80,10 +85,12 @@ def loadjson_and_rekey(ds, json_specs, key_map=None):
           A preprocessed example with the format listed above.
         """
         x = tfio.experimental.serialization.decode_json(x, specs=json_specs)
-        if key_map:
-            return {
-                new_key: x[old_key] for new_key, old_key in key_map.items() if old_key
-            }
+        x["text"] = x["text"][:text_max_len]
+
+        x = {
+            new_key: x[old_key] for new_key, old_key in key_map.items() if old_key
+        }
+
         return x
 
     return ds.map(
@@ -284,17 +291,11 @@ def get_datasets(
 
     eval_ds = train_ds.take(int(config.eval_dataset_size))
 
-    dataset_json_spec = {
-        "text": tf.TensorSpec(tf.TensorShape([]), tf.string, name="text"),
-    }
-
     # shard the dataset as soon as it is loaded
     # not use
     # train_ds = train_ds.shard(num_shards=jax.process_count(), index=jax.process_index())
     train_ds = loadjson_and_rekey(
         train_ds, 
-        json_specs=dataset_json_spec,
-        key_map={"inputs": None, "targets": "text"},
     )
 
     # nor use
@@ -303,8 +304,6 @@ def get_datasets(
     #   mainly to avoid eval sequences change depending on the number of hosts
     eval_ds = loadjson_and_rekey(
         eval_ds, 
-        json_specs=dataset_json_spec,
-        key_map={"inputs": None, "targets": "text"},
     )
 
     return train_ds, eval_ds
