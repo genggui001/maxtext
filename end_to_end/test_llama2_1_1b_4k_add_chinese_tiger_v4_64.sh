@@ -64,6 +64,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  gradient_clipping_threshold=0.0 \
  opt_type=tiger \
  tiger_b=0.965 \
+ tiger_powerball_gamma=0.5 \
  tiger_weight_decay=0.01 \
  adam_b1=0.9 \
  adam_b2=0.95 \
