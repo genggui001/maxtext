@@ -12,7 +12,7 @@ all_batch_token=1048576
 
 max_target_length=4096
 devices=32
-per_device_batch_size=4
+per_device_batch_size=8
 
 warmup_steps=2000
 
