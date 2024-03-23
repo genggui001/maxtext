@@ -68,7 +68,7 @@ def loadjson_and_rekey(ds):
         "text": tf.TensorSpec(tf.TensorShape([]), tf.string, name="text"),
     }
     key_map={"inputs": None, "targets": "text"}
-    text_max_len = 50000000
+    text_max_len = 10 * 1024 * 1024 # 10M
 
     def _loadjson_and_rekey(x, json_specs, key_map=None):
         """Replace the feature keys according to the mapping in `key_map`.
@@ -85,7 +85,7 @@ def loadjson_and_rekey(ds):
           A preprocessed example with the format listed above.
         """
         x = tfio.experimental.serialization.decode_json(x, specs=json_specs)
-        x["text"] = x["text"][:text_max_len]
+        x["text"] = tf.strings.substr(x["text"], 0, text_max_len, unit='BYTE')
 
         x = {
             new_key: x[old_key] for new_key, old_key in key_map.items() if old_key

@@ -51,7 +51,7 @@ def data_loader():
         buffer_size=8 * 1024 * 1024,
         num_parallel_reads=len(zh_data_paths),
     )
-    text_max_len = 50
+    text_max_len = 10 * 1024 * 1024
     def decode(x):
         x = tfio.experimental.serialization.decode_json(x, specs=SPECS)
 
