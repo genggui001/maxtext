@@ -4,7 +4,7 @@ set -e
 # export JAX_TRACEBACK_FILTERING=off
 
 idx=$(date +%Y-%m-%d-%H-%M)
-dataset_path=/home/genggui001/gdrive/gg-nlp-lm-new
+dataset_path=/home/genggui001/gdrive/gg-nlp-lm-new-2
 
 
 all_token=536870912000
@@ -46,7 +46,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  model_name='llama2-1_1b-add-chinese' \
  ici_data_parallelism=-1 \
  ici_fsdp_parallelism=8 \
- data_shuffle_seed=654321 \
+ data_shuffle_seed=4242 \
  steps=$forward_steps \
  warmup_steps=$forward_warmup_steps \
  eval_interval=$eval_interval \
