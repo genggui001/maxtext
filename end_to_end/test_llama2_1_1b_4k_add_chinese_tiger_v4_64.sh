@@ -4,7 +4,7 @@ set -e
 # export JAX_TRACEBACK_FILTERING=off
 
 idx=$(date +%Y-%m-%d-%H-%M)
-dataset_path=/home/genggui001/gdrive/gg-nlp-lm-new
+dataset_path=gs://genggui001-us-central2/corpus
 
 
 all_token=536870912000
