@@ -77,7 +77,7 @@ class LlamaDecoderLayer(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         )
     lnx = lnx_rms(inputs)
-
+    lnx = linears._convert_to_activation_function(cfg.pre_attention_activation)(lnx)
     lnx = nn.with_logical_constraint(
         lnx, ('activation_batch', 'activation_length', 'activation_embed'))
 
@@ -119,6 +119,7 @@ class LlamaDecoderLayer(nn.Module):
         kernel_axes=('embed',),
         epsilon=cfg.normalization_layer_epsilon,
         )(intermediate_inputs)
+    hidden_states = linears._convert_to_activation_function(cfg.pre_mlp_activation)(hidden_states)
     hidden_states = nn.with_logical_constraint(
       hidden_states,
       ('activation_batch', 'activation_length', 'activation_embed')
