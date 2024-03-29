@@ -15,11 +15,11 @@
 # model config for llama2-7b
 
 base_emb_dim: 512
-base_num_query_heads: 8
-base_num_kv_heads: 8
+base_num_query_heads: 4
+base_num_kv_heads: 4
 base_mlp_dim: 12288
 base_num_decoder_layers: 24
-head_dim: 64
+head_dim: 128
 mlp_activations: ["relu","linear"]
 pre_attention_activation: "relu"
 pre_mlp_activation: "relu"
