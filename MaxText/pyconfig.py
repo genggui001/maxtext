@@ -70,6 +70,7 @@ def validate_model_name(s: str) -> bool:
     'llama2-7b-add-chinese', 
     'llama2-1_6b-add-chinese', 
     'llama2-1_1b-add-chinese',
+    'llama2_all_relu-1_1b-add-chinese',
     'llama2-70b', 
     'mistral-7b',
     'mixtral-8x7b', 
