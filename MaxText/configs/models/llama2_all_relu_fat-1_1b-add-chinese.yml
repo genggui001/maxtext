@@ -22,7 +22,7 @@ base_num_decoder_layers: 24
 head_dim: 128
 mlp_activations: ["relu","linear"]
 pre_attention_activation: "linear"
-pre_mlp_activation: "relu"
+pre_mlp_activation: "linear"
 vocab_size: 137728
 enable_dropout: False
 logits_via_embedding: False
