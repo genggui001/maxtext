@@ -17,10 +17,10 @@
 base_emb_dim: 768
 base_num_query_heads: 6
 base_num_kv_heads: 6
-base_mlp_dim: 16384
+base_mlp_dim: 24576
 base_num_decoder_layers: 24
 head_dim: 128
-mlp_activations: ["relu","linear"]
+mlp_activations: ["relu"]
 pre_attention_activation: "linear"
 pre_mlp_activation: "linear"
 vocab_size: 137728
