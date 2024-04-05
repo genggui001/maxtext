@@ -141,3 +141,5 @@ test_dataset.ipynb
 test_tpu.ipynb
 install_gdrive.sh
 update_gdrive.sh
+download.py
+all.json

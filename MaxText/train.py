@@ -157,17 +157,20 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type='c4', data_ite
   if dataset_type == 'c4-array_record':
     return checkpoint_manager.save(
       step,
+      metrics=metrics,
       args=orbax.checkpoint.args.Composite(
         items=orbax.checkpoint.args.PyTreeSave(item=state),
         iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator)
-        )
       )
+    )
   else:
     return checkpoint_manager.save(
       step,
+      metrics=metrics,
       args=orbax.checkpoint.args.Composite(
         items=orbax.checkpoint.args.PyTreeSave(item=state)
-        ))
+      )
+    )
 
 # -----------------------------------------------------------------------------
 # Top-level Functions
