@@ -43,7 +43,7 @@ export LIBTPU_INIT_ARGS="--xla_enable_async_all_gather=true TPU_MEGACORE=MEGACOR
 
 python3 -u MaxText/train.py MaxText/configs/base.yml \
  run_name=runner_${idx} \
- model_name='llama2_all_relu-1_1b-add-chinese' \
+ model_name='llama2_relu2_fat-1_1b-add-chinese' \
  ici_data_parallelism=-1 \
  ici_fsdp_parallelism=8 \
  data_shuffle_seed=4242 \
@@ -56,7 +56,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  max_target_length=$max_target_length \
  per_device_batch_size=$per_device_batch_size \
  gradient_accumulation_steps=$gradient_accumulation_steps \
- base_output_directory=gs://genggui001-us-central2/llm_checkpoints/llama2_all_relu-1_1b_4k_add-chinese  \
+ base_output_directory=gs://genggui001-us-central2/llm_checkpoints/llama2_relu2_fat-1_1b_4k_add-chinese  \
  dataset_path=${dataset_path} \
  attention=flash \
  rope_base=1000000 \
