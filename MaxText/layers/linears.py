@@ -48,6 +48,9 @@ def _convert_to_activation_function(
     return lambda x: x
   elif fn_or_string == 'relu2':
     return lambda x: (nn.relu(x)) ** 2
+  elif fn_or_string == 'time_shift':
+    # on axis 1
+    return lambda x: x + jnp.pad(x[:, :-1, :], ((0, 0), (1, 0), (0, 0)), 'constant', constant_values=0)
   elif isinstance(fn_or_string, str):
     return getattr(nn, fn_or_string)
   elif callable(fn_or_string):
