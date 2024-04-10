@@ -264,7 +264,7 @@ def get_datasets(
     )
 
     other_ds = load_base_dataset(
-        pattern=os.path.join(config.dataset_path, "gg_others_shuffle/**/*.jsonl.gz"),
+        pattern=os.path.join(config.dataset_path, "uonlp_culturax_shuffle/**/*.jsonl.gz"),
         seed=config.data_shuffle_seed,
     )
 
@@ -281,9 +281,9 @@ def get_datasets(
             code_ds.repeat(),
         ], 
         weights=[
-            0.4,
-            0.45,
-            0.05,
+            0.35,
+            0.3,
+            0.25,
             0.1,
         ],
         seed=config.data_shuffle_seed,
