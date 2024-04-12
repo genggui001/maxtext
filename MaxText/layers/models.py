@@ -163,6 +163,9 @@ class Decoder(nn.Module):
     elif self.config.decoder_block == "llama2":
       from layers import llama2
       return llama2.LlamaDecoderLayer
+    elif self.config.decoder_block == "gg":
+      from layers import gg
+      return gg.GGDecoderLayer
     elif self.config.decoder_block == "mistral":
       # TODO(ranran): update to Mistral with sliding window attention
       from layers import mistral
@@ -177,7 +180,7 @@ class Decoder(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   def get_norm_layer(self):
-    if self.config.decoder_block in ("default", "llama2", "mistral", "gemma"):
+    if self.config.decoder_block in ("default", "llama2", "gg", "mistral", "gemma"):
       return RMSNorm
     elif self.config.decoder_block == "gpt3":
       from layers import gpt3

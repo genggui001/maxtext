@@ -48,9 +48,9 @@ def _convert_to_activation_function(
     return lambda x: x
   elif fn_or_string == 'relu2':
     return lambda x: (nn.relu(x)) ** 2
-  elif fn_or_string == 'time_shift':
-    # on axis 1
-    return lambda x: x + jnp.pad(x[:, :-1, :], ((0, 0), (1, 0), (0, 0)), 'constant', constant_values=0)
+  # elif fn_or_string == 'time_shift':
+  #   # on axis 1
+  #   return lambda x: x + jnp.pad(x[:, :-1, :], ((0, 0), (1, 0), (0, 0)), 'constant', constant_values=0)
   elif isinstance(fn_or_string, str):
     return getattr(nn, fn_or_string)
   elif callable(fn_or_string):
@@ -267,7 +267,7 @@ class MlpBlock(nn.Module):
   quant: Optional[Quant] = None
 
   def get_norm_layer(self):
-    if self.config.decoder_block in ("default", "llama2", "mistral", "gemma"):
+    if self.config.decoder_block in ("default", "llama2", "gg", "mistral", "gemma"):
       return RMSNorm
     elif self.config.decoder_block == "gpt3":
       from layers import gpt3
@@ -402,3 +402,109 @@ class MoeBlock(nn.Module):
         mlp_lnx += mlp_lnx_exp
 
     return mlp_lnx
+
+
+class RoeBlock(nn.Module):
+  """Transformer MLP / feed-forward block.
+
+  Attributes:
+    intermediate_dim: Shared dimension of hidden layers.
+    activations: Type of activations for each layer.  Each element is either
+      'linear', a string function name in flax.linen, or a function.
+    kernel_init: Kernel function, passed to the dense layers.
+    deterministic: Whether the dropout layers should be deterministic.
+    intermediate_dropout_rate: Dropout rate used after the intermediate layers.
+    dtype: computation data type for the dense layer.
+    weight_dtype: weight data type for the dense layer.
+    use_bias: whether to add bias in all feedforward layers.
+    use_pre_norm: whether to add pre layer norm in mlp layers.
+    quant: Optional quantization config, no quantization if None.
+  """
+
+  config: Config
+  num_experts: int = 8
+  expert_dim: int = 2048
+  expert_activation: Union[str, Callable[..., Any]] = 'relu2'
+  router_activation: Union[str, Callable[..., Any]] = 'relu2'
+  kernel_init: NdInitializer = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
+  intermediate_dropout_rate: float = 0.1
+  dtype: Any = jnp.float32
+  weight_dtype: Any = jnp.float32
+  use_bias: bool = False
+  use_pre_norm: bool = False
+  quant: Optional[Quant] = None
+
+  def get_norm_layer(self):
+    if self.config.decoder_block in ("default", "llama2", "gg", "mistral", "gemma"):
+      return RMSNorm
+    elif self.config.decoder_block == "gpt3":
+      from layers import gpt3
+      return functools.partial(gpt3.Gpt3LayerNorm, reductions_in_fp32=False, use_bias=self.use_bias)
+    else:
+      raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
+
+  @nn.compact
+  def __call__(self, inputs, decode: bool = False, deterministic: bool = False):
+    """Applies Transformer MlpBlock module."""
+    cfg = self.config
+
+    if self.use_pre_norm:
+      inputs = self.get_norm_layer()(
+        name='mlp_layer_norm',
+        dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        kernel_axes=('embed',),
+        epsilon=cfg.normalization_layer_epsilon,
+        )(inputs)
+
+    r = DenseGeneral(
+        features=(self.num_experts, 1),
+        axis=-1,
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        kernel_init=self.kernel_init,
+        kernel_axes=('embed', 'mlp', 'mlp_i'),
+        name='wr',
+        quant=self.quant,
+        use_bias=self.use_bias,
+    )(inputs)
+    r = _convert_to_activation_function(self.router_activation)(r)
+
+    x = DenseGeneral(
+        features=(self.num_experts, self.expert_dim),
+        axis=-1,
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        kernel_init=self.kernel_init,
+        kernel_axes=('embed', 'mlp', 'mlp_i'),
+        name='wi',
+        quant=self.quant,
+        use_bias=self.use_bias,
+    )(inputs)
+    x = _convert_to_activation_function(self.expert_activation)(x)
+
+    # mut
+    x = x * r
+    x = checkpoint_name(x, 'mlpwi')
+    # Apply dropout and final dense output projection.
+    x = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-3,))(
+        x, deterministic=deterministic
+    )  # Broadcast along length.
+    x = nn.with_logical_constraint(
+        x, ('activation_batch', 'activation_length', 'activation_mlp', 'activation_mlp_i')
+    )
+    output = DenseGeneral(
+        features=inputs.shape[-1],
+        axis=(-2, -1),
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        kernel_init=self.kernel_init,
+        kernel_axes=('mlp', 'mlp_i', 'embed'),
+        name='wo',
+        quant=self.quant,
+        use_bias=self.use_bias,
+    )(x)
+    output = checkpoint_name(output, 'mlpwo')
+    return output
+
+
