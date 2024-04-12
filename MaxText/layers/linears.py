@@ -463,7 +463,7 @@ class RoeBlock(nn.Module):
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         kernel_init=self.kernel_init,
-        kernel_axes=('embed', 'mlp', 'mlp_i'),
+        kernel_axes=('embed', 'mlp_i', 'mlp'),
         name='wr',
         quant=self.quant,
         use_bias=self.use_bias,
@@ -476,7 +476,7 @@ class RoeBlock(nn.Module):
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         kernel_init=self.kernel_init,
-        kernel_axes=('embed', 'mlp', 'mlp_i'),
+        kernel_axes=('embed', 'mlp_i', 'mlp'),
         name='wi',
         quant=self.quant,
         use_bias=self.use_bias,
@@ -491,7 +491,7 @@ class RoeBlock(nn.Module):
         x, deterministic=deterministic
     )  # Broadcast along length.
     x = nn.with_logical_constraint(
-        x, ('activation_batch', 'activation_length', 'activation_mlp', 'activation_mlp_i')
+        x, ('activation_batch', 'activation_length', 'activation_mlp_i', 'activation_mlp')
     )
     output = DenseGeneral(
         features=inputs.shape[-1],
@@ -499,7 +499,7 @@ class RoeBlock(nn.Module):
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         kernel_init=self.kernel_init,
-        kernel_axes=('mlp', 'mlp_i', 'embed'),
+        kernel_axes=('mlp_i', 'mlp', 'embed'),
         name='wo',
         quant=self.quant,
         use_bias=self.use_bias,

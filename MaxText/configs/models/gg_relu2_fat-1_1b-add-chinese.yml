@@ -17,8 +17,8 @@
 base_emb_dim: 768
 base_num_query_heads: 6
 base_num_kv_heads: 6
-base_mlp_dim: 768
-num_experts: 32
+base_mlp_dim: 384
+num_experts: 64
 base_num_decoder_layers: 24
 head_dim: 128
 mlp_activations: ["relu2", "relu2"]
