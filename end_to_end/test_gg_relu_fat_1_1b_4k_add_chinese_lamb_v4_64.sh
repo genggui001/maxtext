@@ -20,7 +20,7 @@ forward_steps=$(($all_token / $max_target_length / $devices / $per_device_batch_
 gradient_accumulation_steps=$(($all_batch_token / $max_target_length / $devices / $per_device_batch_size))
 forward_warmup_steps=$(($gradient_accumulation_steps * $warmup_steps))
 
-eval_interval=$(($forward_steps / 32))
+eval_interval=$(($forward_steps / 64))
 
 echo "all_token=$all_token"
 echo "all_batch_token=$all_batch_token"
