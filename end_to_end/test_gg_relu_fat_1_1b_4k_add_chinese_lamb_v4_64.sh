@@ -42,7 +42,6 @@ echo "----------------------------------------runner_${idx}---------------------
 export LIBTPU_INIT_ARGS="--xla_enable_async_all_gather=true TPU_MEGACORE=MEGACORE_DENSE"
 
 python3 -u MaxText/train.py \
- --grain_num_threads_computing_num_records=8192 \
  MaxText/configs/base.yml \
  run_name=runner_${idx} \
  model_name='gg_relu_fat-1_1b-add-chinese' \
@@ -70,5 +69,6 @@ python3 -u MaxText/train.py \
  adam_b2=0.95 \
  adam_weight_decay=0.01 \
  learning_rate=1.76e-3 \
+ --grain_num_threads_computing_num_records=8192 \
 
 
