@@ -96,8 +96,8 @@ def get_datasets(config: ml_collections.ConfigDict):
         ],
         d_group=[
             9, 
-            5, 
             4, 
+            5, 
             2
         ],
         group_size=20,
