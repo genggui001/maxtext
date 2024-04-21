@@ -42,6 +42,9 @@ class SArrayRecordDataSource:
         assert sum(d_group) == group_size
         assert len(data_paths) == len(d_group)
 
+        for data_path in data_paths:
+            print(("read_data", data_path[:2], len(data_path)))
+
         self._data_paths = data_paths
         self._d_group = d_group
         self._group_size = group_size
