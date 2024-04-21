@@ -68,4 +68,5 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  adam_b2=0.95 \
  adam_weight_decay=0.01 \
  learning_rate=1.76e-3 \
+ grain_num_threads_computing_num_records=8192 \
 
