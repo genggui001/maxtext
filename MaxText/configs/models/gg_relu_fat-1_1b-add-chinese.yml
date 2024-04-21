@@ -22,14 +22,14 @@ num_experts: 128
 base_num_decoder_layers: 24
 head_dim: 128
 mlp_activations: ["relu", "relu"]
-vocab_size: 137728
+vocab_size: 171520
 enable_dropout: False
 logits_via_embedding: False
 normalization_layer_epsilon: 1.0e-5
 decoder_block: "gg"
-tokenizer_path: "assets/llama_add_chinese_other.model"
-dataset_type: "gg_mlperf"
-eval_dataset_size: 1024
+tokenizer_path: "assets/llama_add_world.model"
+dataset_type: "gg_array_record"
+eval_step: 16
 
 # weight_dtype: "bfloat16"
 

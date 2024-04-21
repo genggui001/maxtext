@@ -25,6 +25,7 @@ from jax.sharding import PartitionSpec as P
 
 from input_pipeline import _tfds_data_processing
 from input_pipeline import _grain_data_processing
+from input_pipeline import _grain_data_processing_gg
 from input_pipeline import _tfds_data_processing_c4_mlperf
 from input_pipeline import _tfds_data_processing_gg_mlperf
 import tokenizer
@@ -99,6 +100,24 @@ def make_grain_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
   )
   return train_iter, None, sp_tokenizer
 
+def make_gg_grain_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
+  """ Make train iterator and tokenizer for C4 dataset"""
+  train_ds, eval_ds = _grain_data_processing_gg.get_datasets(
+    config=config
+  )
+  sp_tokenizer = get_tokenizer(config.tokenizer_path, add_bos, add_eos)
+  train_iter, eval_iter, _ = _grain_data_processing_gg.preprocess_dataset(
+    config,
+    mesh,
+    train_ds, eval_ds,
+    vocab_path=config.tokenizer_path,
+    data_shuffle_seed = config.data_shuffle_seed,
+    add_bos = add_bos,
+    add_eos = add_eos
+  )
+  return train_iter, eval_iter, sp_tokenizer
+
+
 class SyntheticDataIterator():
   """Creates a synthetic data iterator for performance testing work"""
   def __init__(self, config, mesh):
@@ -148,6 +167,8 @@ def create_data_iterator_with_tokenizer(config, mesh, add_bos = True, add_eos = 
     return make_c4_mlperf_train_iterator_and_tokenizer(config, mesh, add_bos=False, add_eos=False)
   elif config.dataset_type == "gg_mlperf":
     return make_gg_mlperf_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos)
+  elif config.dataset_type == "gg_array_record":
+    return make_gg_grain_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos)
   else:
     assert False, "dataset type not implemented"
 

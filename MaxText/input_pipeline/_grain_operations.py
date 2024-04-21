@@ -21,6 +21,8 @@ from typing import Dict
 import grain.python as grain
 import numpy as np
 import tensorflow as tf
+import gzip
+import json
 Features = Dict[str, tf.Tensor]
 
 @dataclasses.dataclass
@@ -43,6 +45,15 @@ class NormalizeFeatures(grain.MapTransform):
     return {
       'inputs':features['text'].numpy().decode(), 
       'targets': features['text'].numpy().decode()
+    }
+
+@dataclasses.dataclass
+class GGParseFeatures(grain.MapTransform):
+  """Normalize text feature keys."""
+  def map(self, features):
+    text = json.loads(gzip.decompress(features).decode("utf8")).get('text', "")
+    return {
+      'inputs': text,
     }
 
 
@@ -114,3 +125,11 @@ class ShiftData(grain.MapTransform):
     self.axis = axis
   def map(self, data):
     return shift_and_refine(data, axis=self.axis)
+
+@dataclasses.dataclass
+class GGShiftData(grain.MapTransform):
+  def map(self, data):
+    return {
+      "inputs": data["inputs"][:-1],
+      "targets": data["inputs"][1:],
+    }

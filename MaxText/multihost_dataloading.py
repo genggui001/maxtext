@@ -21,7 +21,7 @@ Adapted from Sholto's:
 https://github.com/sholtodouglas/multihost_dataloading
 """
 from functools import lru_cache, partial  # pylint: disable=g-importing-member
-from typing import Callable, Any, Union
+from typing import Callable, Any, Union, Optional
 from collections.abc import Iterator
 import tensorflow as tf  # pylint: disable=g-import-not-at-top
 import time
@@ -95,9 +95,11 @@ def get_next_batch_sharded(
 
 class MultiHostDataLoadIterator:
   """fold get_next_batch_sharded into a iterator class"""
-  def __init__(self, dataloader: Union[tf.data.Dataset, grain.DataLoader], global_mesh: Mesh):
+  def __init__(self, dataloader: Union[tf.data.Dataset, grain.DataLoader], global_mesh: Mesh, length: Optional[int]=None):
     self.global_mesh = global_mesh
     self.dataloader = dataloader
+    self.length = length
+    self.step = 0
     if isinstance(self.dataloader, tf.data.Dataset):
       self.local_iterator = self.dataloader.as_numpy_iterator()
     elif isinstance(self.dataloader, grain.DataLoader):
@@ -106,6 +108,7 @@ class MultiHostDataLoadIterator:
       raise ValueError("Type error: dataloader should be either tf.data.Dataset or grain.DataLoader.")
 
   def reset(self):
+    self.step = 0
     if isinstance(self.dataloader, tf.data.Dataset):
       self.local_iterator = self.dataloader.as_numpy_iterator()
     elif isinstance(self.dataloader, grain.DataLoader):
@@ -118,4 +121,8 @@ class MultiHostDataLoadIterator:
     return self
 
   def __next__(self):
-    return get_next_batch_sharded(self.local_iterator, self.global_mesh)
+    if self.length is not None and self.step >= self.length:
+      raise StopIteration
+    data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
+    self.step += 1
+    return data 

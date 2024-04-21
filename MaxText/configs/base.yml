@@ -265,4 +265,5 @@ decode_sampling_temperature: 1.
 
 eval_interval: -1  # the specific number of train step between eval_step
 eval_dataset_size: -1
+eval_step: -1 
 target_eval_loss: 0.  # early stop once reaching target eval_loss
