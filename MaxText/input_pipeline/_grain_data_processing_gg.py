@@ -227,7 +227,7 @@ def preprocessing_pipeline(
 
     index_sampler = grain.IndexSampler(
         num_records=len(dataset),
-        num_epochs=10,
+        num_epochs=1,
         shard_options=grain.ShardOptions(
             shard_index=jax.process_index(),
             shard_count=jax.process_count(),
