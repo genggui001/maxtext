@@ -8,7 +8,7 @@ dataset_path=/tmp/gcsfuse/corpus
 
 
 all_token=2147483648000
-all_batch_token=1048576
+all_batch_token=4194304
 
 max_target_length=4096
 devices=32
