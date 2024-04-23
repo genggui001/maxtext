@@ -123,6 +123,10 @@ class MultiHostDataLoadIterator:
   def __next__(self):
     if self.length is not None and self.step >= self.length:
       raise StopIteration
-    data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
+    try:
+      data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
+    except StopIteration:
+      self.reset()
+      data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
     self.step += 1
     return data 
