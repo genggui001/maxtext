@@ -95,7 +95,7 @@ def get_datasets(config: ml_collections.ConfigDict):
             sorted(glob.glob(os.path.join(config.dataset_path, "gg_en_array_record/*/*.jsonl.array_record"))),
             sorted(glob.glob(os.path.join(config.dataset_path, "gg_zh_array_record/*/*.jsonl.array_record"))),
             sorted(glob.glob(os.path.join(config.dataset_path, "uonlp_culturax_shuffle/*/*.jsonl.array_record"))),
-            sorted(glob.glob(os.path.join(config.dataset_path, "the-stack-dedup/*/*.jsonl.array_record"))),
+            sorted(glob.glob(os.path.join(config.dataset_path, "the-stack-dedup_data_record/*/*.jsonl.array_record"))),
         ],
         d_group=[
             9, 
@@ -119,6 +119,7 @@ def preprocess_dataset(
     add_bos=True,
     add_eos=True,
 ):
+    assert config.eval_step > 0
     """Use grain to pre-process the dataset and return iterators"""
     # Set global batch size.
     global_batch_size_to_load = config.global_batch_size_to_load
