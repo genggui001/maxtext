@@ -45,6 +45,7 @@ python3 -u MaxText/train.py \
  MaxText/configs/base.yml \
  run_name=runner_${idx} \
  model_name='gg_relu_fat-1_1b-add-chinese' \
+ grain_worker_count=1 \
  ici_data_parallelism=-1 \
  ici_fsdp_parallelism=8 \
  data_shuffle_seed=4242 \
