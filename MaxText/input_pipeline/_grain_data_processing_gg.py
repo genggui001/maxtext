@@ -58,7 +58,7 @@ class SArrayRecordDataSource:
         # 最大的一个迭代完成 * 10 (铁定完不成)
         self._len = max(
             [int(l / g * group_size) for l, g in zip(self._lengths, d_group)]
-        ) * 10
+        )
 
         self._offsets = []
         for d_i, g_size in enumerate(d_group):
@@ -227,7 +227,7 @@ def preprocessing_pipeline(
 
     index_sampler = grain.IndexSampler(
         num_records=len(dataset),
-        num_epochs=1,
+        num_epochs=10,
         shard_options=grain.ShardOptions(
             shard_index=jax.process_index(),
             shard_count=jax.process_count(),
