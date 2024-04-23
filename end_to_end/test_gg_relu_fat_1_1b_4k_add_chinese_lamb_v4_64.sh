@@ -7,7 +7,7 @@ idx=$(date +%Y-%m-%d-%H-%M)
 dataset_path=/tmp/gcsfuse/corpus
 
 
-all_token=536870912000
+all_token=2147483648000
 all_batch_token=1048576
 
 max_target_length=4096
@@ -20,7 +20,7 @@ forward_steps=$(($all_token / $max_target_length / $devices / $per_device_batch_
 gradient_accumulation_steps=$(($all_batch_token / $max_target_length / $devices / $per_device_batch_size))
 forward_warmup_steps=$(($gradient_accumulation_steps * $warmup_steps))
 
-eval_interval=$(($forward_steps / 64))
+eval_interval=$(($forward_steps / 128))
 
 echo "all_token=$all_token"
 echo "all_batch_token=$all_batch_token"
