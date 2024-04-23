@@ -264,10 +264,10 @@ def train_step(model, config, state, data, dropout_rng):
   new_state = state.apply_gradients(grads=raw_grads)
 
   if isinstance(state.opt_state, optax.MultiStepsState):
-    print("use MultiStepsState step")
+    max_logging.log("use MultiStepsState step")
     opt_state = state.opt_state.inner_opt_state
   else:
-    print("use BaseState step")
+    max_logging.log("use BaseState step")
     opt_state = state.opt_state
   
   if type(opt_state) == tuple:
@@ -415,10 +415,10 @@ def train_loop(config, state=None):
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != '':
-    print("Loading the compiled function...", flush=True)
+    max_logging.log("Loading the compiled function...")
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
     p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
-    print("Loaded compiled function!", flush=True)
+    max_logging.log("Loaded compiled function!")
   else:
     p_train_step = jax.jit(
       functional_train,
@@ -517,9 +517,9 @@ def main(argv: Sequence[str]) -> None:
       stack_trace_to_cloud = config.stack_trace_to_cloud,
       stack_trace_interval_seconds = config.stack_trace_interval_seconds))
   diagnostic_config = diagnostic_configuration.DiagnosticConfig(debug_config)
-  print(f"Found {jax.device_count()} devices.")
-  print(f"Found {jax.process_count()} processes.")
-  print(f"Found {jax.devices()} devices.")
+  max_logging.log(f"Found {jax.device_count()} devices.")
+  max_logging.log(f"Found {jax.process_count()} processes.")
+  max_logging.log(f"Found {jax.devices()} devices.")
   with diagnostic.diagnose(diagnostic_config):
     train_loop(config)
 
