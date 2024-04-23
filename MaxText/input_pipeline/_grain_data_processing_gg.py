@@ -92,8 +92,8 @@ def get_datasets(config: ml_collections.ConfigDict):
     """Load dataset from array_record files for using with grain"""
     train_ds = SArrayRecordDataSource(
         data_paths = [
-            sorted(glob.glob(os.path.join(config.dataset_path, "gg_en_array_record/*/*.jsonl.array_record"))),
-            sorted(glob.glob(os.path.join(config.dataset_path, "gg_zh_array_record/*/*.jsonl.array_record"))),
+            sorted(glob.glob(os.path.join(config.dataset_path, "gg_en_data_record/*/*.jsonl.array_record"))),
+            sorted(glob.glob(os.path.join(config.dataset_path, "gg_zh_data_record/*/*.jsonl.array_record"))),
             sorted(glob.glob(os.path.join(config.dataset_path, "uonlp_culturax_shuffle/*/*.jsonl.array_record"))),
             sorted(glob.glob(os.path.join(config.dataset_path, "the-stack-dedup_data_record/*/*.jsonl.array_record"))),
         ],
