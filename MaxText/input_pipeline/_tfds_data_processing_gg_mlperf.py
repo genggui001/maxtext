@@ -355,7 +355,6 @@ def preprocess_dataset(
         return np.asarray(token_ids, dtype=np.int32)
 
     # train
-    train_ds = train_ds.shuffle(shuffle_buffer_size, seed=data_shuffle_seed)
     train_ds = train_ds.map(
         lambda x: {
             'targets': tf.numpy_function(
@@ -367,6 +366,7 @@ def preprocess_dataset(
         },
         num_parallel_calls=AUTOTUNE,
     )
+    train_ds = train_ds.shuffle(shuffle_buffer_size, seed=data_shuffle_seed)
     train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=512)
     train_ds = split_tokens_to_targets_length(train_ds,  config.max_target_length+1)
 
