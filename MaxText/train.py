@@ -154,6 +154,8 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
       writer.flush()
 
 def save_checkpoint(checkpoint_manager, step, state, dataset_type='c4', data_iterator=None, metrics=None):
+  if data_iterator is not None:
+    data_iterator.save_dataloader_checkpoint()
   """Wrapper for saving checkpoint"""
   if dataset_type == 'c4-array_record':
     return checkpoint_manager.save(

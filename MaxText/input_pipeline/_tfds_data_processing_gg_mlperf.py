@@ -29,7 +29,7 @@ import jax
 import jax.numpy as jnp
 from jax.experimental import multihost_utils
 
-import tokenizer
+from sentencepiece import SentencePieceProcessor
 import multihost_dataloading
 import sequence_packing
 import random
@@ -281,9 +281,9 @@ def get_datasets(
             code_ds.repeat(),
         ], 
         weights=[
-            0.35,
-            0.3,
-            0.25,
+            0.5,
+            0.2,
+            0.2,
             0.1,
         ],
         seed=config.data_shuffle_seed,
@@ -314,31 +314,106 @@ def preprocess_dataset(
     global_mesh,
     train_ds,
     eval_ds,
-    sp_tokenizer,
+    vocab_path,
+    add_bos=True,
+    add_eos=True,
     data_shuffle_seed: int = 0,
     shuffle_buffer_size: int = 128,
 ):
-    """Pre-process the dataset and return iterators for mlperf training."""
-    # tokenize
-    train_ds = train_ds.map(
-        tokenizer.TokenizeOp(sp_tokenizer, data_keys=("targets",)),
-        num_parallel_calls=AUTOTUNE,
-    )
-    eval_ds = eval_ds.map(
-        tokenizer.TokenizeOp(sp_tokenizer, data_keys=("targets",)),
-        num_parallel_calls=AUTOTUNE,
-    )
+    # Set global batch size.
+    global_batch_size_to_load = config.global_batch_size_to_load
 
-    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=4096)
-    train_ds = split_tokens_to_targets_length(train_ds, config.max_target_length+1)
+    if config.eval_per_device_batch_size > 0:
+        eval_batch_size = config.eval_per_device_batch_size * global_mesh.size
+    else:
+        eval_batch_size = global_batch_size_to_load
+    
+    # Set tokenize_processor
+    tokenize_processor = SentencePieceProcessor()
+    tokenize_processor.Load(vocab_path)
+
+    def tokenize_fn(t: np.ndarray):
+        text = t.decode('utf-8')
+        token_ids = tokenize_processor.EncodeAsIds(text)
+        if add_bos:
+            token_ids = [tokenize_processor.bos_id()] + token_ids
+        if add_eos:
+            token_ids = token_ids + [tokenize_processor.eos_id()]
+        return np.asarray(token_ids, dtype=np.int32)
+
+    # train
     train_ds = train_ds.shuffle(shuffle_buffer_size, seed=data_shuffle_seed)
+    train_ds = train_ds.map(
+        lambda x: {
+            'targets': tf.numpy_function(
+                func=tokenize_fn, 
+                inp=[x['targets']], 
+                Tout=tf.int32, 
+                stateful=False,
+            )
+        },
+        num_parallel_calls=AUTOTUNE,
+    )
+    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=512)
+    train_ds = split_tokens_to_targets_length(train_ds,  config.max_target_length+1)
 
+    def train_format_fn(x):
+        tokens = x["targets"]
+
+        x["inputs"] = tokens[:-1]
+        x["targets"] = tokens[1:]
+        
+        x["inputs_segmentation"] = tf.ones_like(x["inputs"])
+        x["targets_segmentation"] = x["inputs_segmentation"]
+
+        position = tf.range(tf.size(tokens)-1, dtype=tf.int32)
+
+        x["inputs_position"] = position
+        x["targets_position"] = position
+
+        return x
+
+    train_ds = train_ds.map(train_format_fn, num_parallel_calls=AUTOTUNE)
+    train_ds = train_ds.padded_batch(
+        global_batch_size_to_load // jax.process_count(), 
+        padded_shapes={
+            "inputs": config.max_target_length,
+            "targets": config.max_target_length,
+            "inputs_segmentation": config.max_target_length,
+            "targets_segmentation": config.max_target_length,
+            "inputs_position": config.max_target_length,
+            "targets_position": config.max_target_length,
+        },
+        padding_values={
+            "inputs": 0,
+            "targets": 0,
+            "inputs_segmentation": 0,
+            "targets_segmentation": 0,
+            "inputs_position": 0,
+            "targets_position": 0,
+        },
+        drop_remainder=True
+    )
+
+    train_ds = train_ds.prefetch(32)
+
+    # eval_ds
+    eval_ds = eval_ds.map(
+        lambda x: {
+            'targets': tf.numpy_function(
+                func=tokenize_fn, 
+                inp=[x['targets']], 
+                Tout=tf.int32, 
+                stateful=False,
+            )
+        },
+        num_parallel_calls=AUTOTUNE,
+    )
     # note eval_ds is pre tokenized, reduce_concated and splitted to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts
-    train_ds = sequence_packing.pack_dataset(train_ds, config.max_target_length+1)
     eval_ds = sequence_packing.pack_dataset(eval_ds, config.max_target_length+1)
 
-    def format_fn(x):
+    def eval_format_fn(x):
         x["inputs"] = x["targets"][:-1]
         x["inputs_position"] = x["targets_position"][:-1]
         x["inputs_segmentation"] = x["targets_segmentation"][:-1]
@@ -348,37 +423,7 @@ def preprocess_dataset(
         x["targets_segmentation"] = x["targets_segmentation"][1:]
         return x
 
-    train_ds = train_ds.map(format_fn, num_parallel_calls=AUTOTUNE)
-    eval_ds = eval_ds.map(format_fn, num_parallel_calls=AUTOTUNE)
-
-    # print("---------------------train_ds---------------------------")
-    # for item in train_ds.as_numpy_iterator():
-    #     print(item['inputs'].tolist())
-    #     print(item['inputs_position'].tolist())
-    #     print(item['inputs_segmentation'].tolist())
-    #     print(item['targets'].tolist())
-    #     break
-
-    # print("---------------------eval_ds---------------------------")
-    # for item in eval_ds.as_numpy_iterator():
-    #     print(item['inputs'].tolist())
-    #     print(item['inputs_position'].tolist())
-    #     print(item['inputs_segmentation'].tolist())
-    #     print(item['targets'].tolist())
-    #     break
-
-
-    # Set global batch size.
-    global_batch_size_to_load = config.global_batch_size_to_load
-
-    if config.eval_per_device_batch_size > 0:
-        eval_batch_size = config.eval_per_device_batch_size * global_mesh.size
-    else:
-        eval_batch_size = global_batch_size_to_load
-
-    train_ds = train_ds.batch(
-        global_batch_size_to_load // jax.process_count(), drop_remainder=True
-    )
+    eval_ds = eval_ds.map(eval_format_fn, num_parallel_calls=AUTOTUNE)
 
     # ensure array split in an equal division for each device
     # pad zeros up to the same batch_size among all processes
@@ -391,15 +436,21 @@ def preprocess_dataset(
     # We explicitly cache the entire epoch (in memory) to ensure that it is the
     # same across different iterations.
     eval_ds = eval_ds.cache()
-
-    train_ds = train_ds.prefetch(32)
     eval_ds = eval_ds.prefetch(32)
 
     train_multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(
-        train_ds, global_mesh
+        dataloader=train_ds, 
+        global_mesh=global_mesh,
+        length=None,
+        dataloder_save_directory=os.path.join(config.dataloader_checkpoint_dir, f"dataloader-{jax.process_index()}-{jax.process_count()}"),
+        dataloder_max_to_keep=config.checkpoint_max_to_keep if config.checkpoint_max_to_keep > 0 else None,
     )
     eval_multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(
-        eval_ds, global_mesh
+        dataloader=eval_ds, 
+        global_mesh=global_mesh,
+        length=None,
+        dataloder_save_directory=None,
+        dataloder_max_to_keep=None,
     )
 
     # Return multi-host jax.Array prep iterator

@@ -22,7 +22,7 @@ def data_loader():
     random.seed(42)
 
     zh_data_paths = sorted(
-        tf.io.gfile.glob("/home/genggui001/gdrive/gg-nlp-lm-new-3/uonlp_culturax_shuffle/**/*.jsonl.gz")
+        tf.io.gfile.glob("/home/genggui001/gdrive/gg-nlp-lm-new/uonlp_culturax_shuffle/**/*.jsonl.gz")
     )
     random.shuffle(zh_data_paths)
     print(zh_data_paths[:5])

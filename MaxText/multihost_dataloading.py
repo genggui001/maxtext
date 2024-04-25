@@ -95,38 +95,61 @@ def get_next_batch_sharded(
 
 class MultiHostDataLoadIterator:
   """fold get_next_batch_sharded into a iterator class"""
-  def __init__(self, dataloader: Union[tf.data.Dataset, grain.DataLoader], global_mesh: Mesh, length: Optional[int]=None):
+  def __init__(
+      self, 
+      dataloader: Union[tf.data.Dataset, grain.DataLoader], 
+      global_mesh: Mesh, 
+      length: Optional[int]=None,
+      dataloder_save_directory: Optional[str]=None,
+      dataloder_max_to_keep: Optional[int]=None,
+    ):
     self.global_mesh = global_mesh
     self.dataloader = dataloader
     self.length = length
-    self.step = 0
-    if isinstance(self.dataloader, tf.data.Dataset):
-      self.local_iterator = self.dataloader.as_numpy_iterator()
-    elif isinstance(self.dataloader, grain.DataLoader):
-      self.local_iterator = iter(self.dataloader)
-    else:
-      raise ValueError("Type error: dataloader should be either tf.data.Dataset or grain.DataLoader.")
+    self.dataloder_save_directory = dataloder_save_directory
+    self.dataloder_max_to_keep = dataloder_max_to_keep
+    self.reset()
 
   def reset(self):
+    self.step = tf.Variable(0)
     if isinstance(self.dataloader, tf.data.Dataset):
       self.local_iterator = self.dataloader.as_numpy_iterator()
+
+      # restore dataloder_save_directory
+      if self.dataloder_save_directory is not None:
+        print(("dataloder save directory", self.dataloder_save_directory))
+        self.ckpt = tf.train.Checkpoint(
+          step=self.step,
+          iterator=self.local_iterator,
+        )
+        self.manager = tf.train.CheckpointManager(
+          self.ckpt,
+          directory=self.dataloder_save_directory,
+          max_to_keep=self.dataloder_max_to_keep,
+        )
+        # restore
+        print(("dataset restore from", self.manager.latest_checkpoint))
+        self.ckpt.restore(self.manager.latest_checkpoint)
     elif isinstance(self.dataloader, grain.DataLoader):
       self.local_iterator = iter(self.dataloader)
     else:
       raise ValueError("Type error: dataloader should be either tf.data.Dataset or grain.DataLoader.")
 
   def __iter__(self):
-    self.reset()
-    self.step = 0
     return self
 
   def __next__(self):
     if self.length is not None and self.step >= self.length:
       raise StopIteration
-    try:
-      data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
-    except StopIteration:
-      self.reset()
-      data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
-    self.step += 1
-    return data 
+    data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
+    self.step.assign_add(1)
+    return data
+
+  def save_dataloader_checkpoint(self):
+    if self.dataloder_save_directory is None:
+      return
+    
+    if isinstance(self.dataloader, tf.data.Dataset):
+      self.manager.save(self.step)
+    else:
+      return

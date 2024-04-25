@@ -4,7 +4,7 @@ set -e
 # export JAX_TRACEBACK_FILTERING=off
 
 idx=$(date +%Y-%m-%d-%H-%M)
-dataset_path=/tmp/gcsfuse/corpus
+dataset_path=gs://genggui001-us-central2/corpus
 
 
 all_token=2147483648000
