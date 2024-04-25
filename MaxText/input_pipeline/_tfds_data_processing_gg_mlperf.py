@@ -379,10 +379,8 @@ def preprocess_dataset(
         x["inputs_segmentation"] = tf.ones_like(x["inputs"])
         x["targets_segmentation"] = x["inputs_segmentation"]
 
-        position = tf.range(tf.size(tokens)-1, dtype=tf.int32)
-
-        x["inputs_position"] = position
-        x["targets_position"] = position
+        x["inputs_position"] = tf.range(tf.size(tokens)-1, dtype=tf.int32)
+        x["targets_position"] = x["inputs_position"]
 
         return x
 
@@ -408,7 +406,7 @@ def preprocess_dataset(
         drop_remainder=True
     )
 
-    train_ds = train_ds.prefetch(32)
+    train_ds = train_ds.prefetch(64)
 
     # eval_ds
     eval_ds = eval_ds.map(
@@ -449,7 +447,6 @@ def preprocess_dataset(
     # We explicitly cache the entire epoch (in memory) to ensure that it is the
     # same across different iterations.
     eval_ds = eval_ds.cache()
-    eval_ds = eval_ds.prefetch(32)
 
     train_multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(
         dataloader=train_ds, 
