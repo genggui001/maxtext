@@ -332,7 +332,7 @@ def preprocess_dataset(
     add_bos=True,
     add_eos=True,
     data_shuffle_seed: int = 0,
-    shuffle_buffer_size: int = 1024,
+    shuffle_buffer_size: int = 4096,
 ):
     # Set global batch size.
     global_batch_size_to_load = config.global_batch_size_to_load
