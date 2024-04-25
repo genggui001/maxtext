@@ -199,4 +199,4 @@ if [[ "$MODE" == "pinned" ]]; then
 else
     pip3 install -U -r requirements.txt
 fi
-[ -d ".git" ] && pre-commit install
+# [ -d ".git" ] && pre-commit install
