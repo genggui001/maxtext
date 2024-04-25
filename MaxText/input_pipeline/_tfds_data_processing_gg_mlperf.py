@@ -346,9 +346,8 @@ def preprocess_dataset(
     tokenize_processor = SentencePieceProcessor()
     tokenize_processor.Load(vocab_path)
 
-    def tokenize_fn(t: np.ndarray):
-        text = t.decode('utf-8')
-        token_ids = tokenize_processor.EncodeAsIds(text)
+    def tokenize_fn(t):
+        token_ids = tokenize_processor.EncodeAsIds(t)
         if add_bos:
             token_ids = [tokenize_processor.bos_id()] + token_ids
         if add_eos:
