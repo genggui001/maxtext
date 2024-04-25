@@ -134,6 +134,9 @@ dmypy.json
 # DS_Store files
 **/.DS_Store 
 
+# Wheel build
+*.whl
+
 spm_model/
 dd_en_pieces.json
 test.ipynb
@@ -143,3 +146,4 @@ install_gdrive.sh
 update_gdrive.sh
 download.py
 all.json
+**/.DS_Store

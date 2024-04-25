@@ -105,7 +105,7 @@ def reduce_concat_tokens(
 ):
     """Token-preprocessor to concatenate multiple unrelated documents.
     If we want to generate examples of exactly the right length,
-    (to avoid wasting space on padding), then we use this function, folowed by
+    (to avoid wasting space on padding), then we use this function, followed by
     split_tokens.
     Args:
       dataset: a tf.data.Dataset with dictionaries containing the key feature_key.
@@ -223,13 +223,15 @@ def _pad_to_batch_size(
 def load_base_dataset(
     pattern,
     seed,
+    data_index,
+    data_num_shards,
 ):
     data_paths = sorted(tf.io.gfile.glob(pattern))
 
     # shard dataset now
     print((pattern, "all_file_count", len(data_paths)))
-    data_num_shards = jax.process_count()
-    data_index = jax.process_index()
+    # data_num_shards = jax.process_count()
+    # data_index = jax.process_index()
     data_paths = [
         d
         for i, d in enumerate(data_paths)
@@ -251,26 +253,36 @@ def load_base_dataset(
 
 def get_datasets(
     config: ml_collections.ConfigDict,
+    dataloading_host_index,
+    dataloading_host_count,
 ):
     """Load and return dataset of batched examples for use during training."""
     en_ds = load_base_dataset(
         pattern=os.path.join(config.dataset_path, "gg_en/**/*.jsonl.gz"),
         seed=config.data_shuffle_seed,
+        data_index=dataloading_host_index,
+        data_num_shards=dataloading_host_count,
     )
 
     zh_ds = load_base_dataset(
         pattern=os.path.join(config.dataset_path, "gg_zh/**/*.jsonl.gz"),
         seed=config.data_shuffle_seed,
+        data_index=dataloading_host_index,
+        data_num_shards=dataloading_host_count,
     )
 
     other_ds = load_base_dataset(
         pattern=os.path.join(config.dataset_path, "uonlp_culturax_shuffle/**/*.jsonl.gz"),
         seed=config.data_shuffle_seed,
+        data_index=dataloading_host_index,
+        data_num_shards=dataloading_host_count,
     )
 
     code_ds = load_base_dataset(
         pattern=os.path.join(config.dataset_path, "the-stack-dedup/**/*.jsonl.gz"),
         seed=config.data_shuffle_seed,
+        data_index=dataloading_host_index,
+        data_num_shards=dataloading_host_count,
     )
 
     train_ds = tf.data.Dataset.sample_from_datasets(
@@ -300,7 +312,7 @@ def get_datasets(
 
     # nor use
     # eval_ds = eval_ds.shard(num_shards=jax.process_count(), index=jax.process_index())
-    # note validation_tokenized_5662seqs split is pre tokenized, reduce_concated and splitted to target_length
+    # note validation_tokenized_5662seqs split is pre tokenized, reduce_concated and split to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts
     eval_ds = loadjson_and_rekey(
         eval_ds, 
@@ -311,6 +323,8 @@ def get_datasets(
 
 def preprocess_dataset(
     config: ml_collections.ConfigDict,
+    dataloading_host_index,
+    dataloading_host_count,
     global_mesh,
     train_ds,
     eval_ds,
@@ -409,7 +423,7 @@ def preprocess_dataset(
         },
         num_parallel_calls=AUTOTUNE,
     )
-    # note eval_ds is pre tokenized, reduce_concated and splitted to target_length
+    # note eval_ds is pre tokenized, reduce_concated and split to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts
     eval_ds = sequence_packing.pack_dataset(eval_ds, config.max_target_length+1)
 
@@ -442,7 +456,7 @@ def preprocess_dataset(
         dataloader=train_ds, 
         global_mesh=global_mesh,
         length=None,
-        dataloder_save_directory=os.path.join(config.dataloader_checkpoint_dir, f"dataloader-{jax.process_index()}-{jax.process_count()}"),
+        dataloder_save_directory=os.path.join(config.dataloader_checkpoint_dir, f"dataloader-{dataloading_host_index}-{dataloading_host_count}"),
         dataloder_max_to_keep=config.checkpoint_max_to_keep if config.checkpoint_max_to_keep > 0 else None,
     )
     eval_multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(

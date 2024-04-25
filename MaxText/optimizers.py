@@ -1,18 +1,18 @@
 """
- Copyright 2023 Google LLC
+Copyright 2023 Google LLC
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-      https://www.apache.org/licenses/LICENSE-2.0
+     https://www.apache.org/licenses/LICENSE-2.0
 
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
- """
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 # pylint: disable=bare-except, consider-using-generator, ungrouped-imports
 """Utils that are only interesting to MaxText. """
@@ -526,6 +526,7 @@ def tiger_pax(
   return optax.GradientTransformation(base_init_fn, base_update_fn)
   
 
+
 def adam_pax(
     learning_rate_fn: optax.Schedule,
     beta1: float,
@@ -533,10 +534,10 @@ def adam_pax(
     epsilon: float,
     epsilon_root: float,
     weight_decay: float,
-    ) -> optax.GradientTransformation:
+) -> optax.GradientTransformation:
   """Standard Adam optimizer that supports weight decay.
 
-  Follows the implemenation in pax/praxis sharded_adam
+  Follows the implementation in pax/praxis sharded_adam
   https://github.com/google/praxis/blob/545e00ab126b823265d70c715950d39333484f38/praxis/optimizers.py#L621
 
   Args:
@@ -555,8 +556,7 @@ def adam_pax(
   """
 
   def init_fn(params):
-    mu = jax.tree_util.tree_map(  # First moment
-        jnp.zeros_like, params)
+    mu = jax.tree_util.tree_map(jnp.zeros_like, params)  # First moment
     nu = jax.tree_util.tree_map(jnp.zeros_like, params)  # Second moment
     return optax.ScaleByAdamState(count=jnp.zeros([], jnp.int32), mu=mu, nu=nu)
 
@@ -580,8 +580,8 @@ def adam_pax(
     Returns:
       Bias corrected decay.
     """
-    t = step.astype(jnp.float32) + 1.
-    return decay * (1. - jnp.power(decay, t - 1.)) / (1. - jnp.power(decay, t))
+    t = step.astype(jnp.float32) + 1.0
+    return decay * (1.0 - jnp.power(decay, t - 1.0)) / (1.0 - jnp.power(decay, t))
 
   def update_fn(updates, state, params=None):
     # Sanitize updates just in case.
@@ -590,6 +590,7 @@ def adam_pax(
     count = state.count
 
     class _slot_opt_state:
+
       def __init__(self, mu, nu):
         self.mu = mu
         self.nu = nu
@@ -611,8 +612,7 @@ def adam_pax(
     mu = jax.tree_map(lambda x: x.mu, updated_moments)
     nu = jax.tree_map(lambda x: x.nu, updated_moments)
 
-    updates = jax.tree_map(
-        lambda mu, nu: mu / (jnp.sqrt(nu + epsilon_root) + epsilon), mu, nu)
+    updates = jax.tree_map(lambda mu, nu: mu / (jnp.sqrt(nu + epsilon_root) + epsilon), mu, nu)
 
     if weight_decay > 0:
       updates = jax.tree_map(lambda x, v: x + weight_decay * v, updates, params)
