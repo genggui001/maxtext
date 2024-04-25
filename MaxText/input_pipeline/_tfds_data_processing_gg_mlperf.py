@@ -367,7 +367,7 @@ def preprocess_dataset(
         },
         num_parallel_calls=AUTOTUNE,
     )
-    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=512)
+    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=1024)
     train_ds = split_tokens_to_targets_length(train_ds,  config.max_target_length+1)
 
     def train_format_fn(x):
@@ -406,7 +406,7 @@ def preprocess_dataset(
         drop_remainder=True
     )
 
-    train_ds = train_ds.prefetch(64)
+    train_ds = train_ds.prefetch(32)
 
     # eval_ds
     eval_ds = eval_ds.map(
