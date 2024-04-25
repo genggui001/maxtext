@@ -30,7 +30,7 @@ normalization_layer_epsilon: 1.0e-5
 decoder_block: "llama2"
 tokenizer_path: "assets/llama_add_chinese_other.model"
 dataset_type: "gg_mlperf"
-eval_dataset_size: 1024
+eval_dataset_size: 4096
 
 # weight_dtype: "bfloat16"
 
