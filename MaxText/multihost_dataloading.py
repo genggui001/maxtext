@@ -108,7 +108,8 @@ class MultiHostDataLoadIterator:
     self.reset()
 
   def reset(self):
-    self.step = tf.Variable(0)
+    # 保持一致，第一次存的时候是0
+    self.step = tf.Variable(-1)
     if isinstance(self.dataloader, tf.data.Dataset):
       self.local_iterator = self.dataloader.as_numpy_iterator()
 
@@ -136,7 +137,7 @@ class MultiHostDataLoadIterator:
     return self
 
   def __next__(self):
-    if self.length is not None and self.step >= self.length:
+    if self.length is not None and self.step+1 >= self.length:
       raise StopIteration
     data = get_next_batch_sharded(self.local_iterator, self.global_mesh)
     self.step.assign_add(1)
