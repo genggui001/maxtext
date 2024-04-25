@@ -268,9 +268,6 @@ def train_step(model, config, state, data, dropout_rng):
     rng2: A new rng key that can be used in future calls.
 
   """
-  # decimate proportion of data when per_device_batch_size<1
-  data = jax.tree_map(lambda x:x[:config.global_batch_size_to_train_on,:], data)
-
   train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
   grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
   (loss, _), raw_grads = grad_fn(state.params)

@@ -332,7 +332,7 @@ def preprocess_dataset(
     add_bos=True,
     add_eos=True,
     data_shuffle_seed: int = 0,
-    shuffle_buffer_size: int = 128,
+    shuffle_buffer_size: int = 1024,
 ):
     # Set global batch size.
     global_batch_size_to_load = config.global_batch_size_to_load
@@ -367,7 +367,7 @@ def preprocess_dataset(
         },
         num_parallel_calls=AUTOTUNE,
     )
-    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=1024)
+    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=512)
     train_ds = split_tokens_to_targets_length(train_ds,  config.max_target_length+1)
 
     def train_format_fn(x):
