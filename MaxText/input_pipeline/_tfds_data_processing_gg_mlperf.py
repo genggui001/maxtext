@@ -19,7 +19,8 @@
 from typing import Optional
 
 import functools
-
+import multiprocessing
+import signal
 import numpy as np
 
 import ml_collections
@@ -320,6 +321,75 @@ def get_datasets(
 
     return train_ds, eval_ds
 
+def tokenize_worker_initializer(vocab_path, add_bos, add_eos):
+    """
+    Used to initialize each worker process.
+    """
+    # Corrects bug where worker instances catch and throw away keyboard interrupts.
+    global tokenize_processor
+    global tokenize_is_add_bos
+    global tokenize_is_add_eos
+
+    from sentencepiece import SentencePieceProcessor
+    # Set tokenize_processor
+    tokenize_processor = SentencePieceProcessor()
+    tokenize_processor.Load(vocab_path)
+
+    tokenize_is_add_bos = add_bos
+    tokenize_is_add_eos = add_eos
+
+    print((vocab_path, add_bos, add_eos, "load success"))
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+def _single_tokenize_fn(t):
+    global tokenize_processor
+    global tokenize_is_add_bos
+    global tokenize_is_add_eos
+
+    token_ids = tokenize_processor.EncodeAsIds(t)
+    if tokenize_is_add_bos:
+        token_ids = [tokenize_processor.bos_id()] + token_ids
+    if tokenize_is_add_eos:
+        token_ids = token_ids + [tokenize_processor.eos_id()]
+    return token_ids
+
+
+def map_with_tokenize(
+    ds,
+    vocab_path,
+    add_bos,
+    add_eos,
+    number_of_parallel_calls,
+):
+    mp_context = multiprocessing.get_context("spawn")
+    pool = mp_context.Pool(number_of_parallel_calls, initializer=tokenize_worker_initializer, initargs=(vocab_path, add_bos, add_eos))
+
+    def tokenize_fn(element_tensor):
+        """
+        Sends the tensor element to the pool for processing.
+
+        :param element_tensor: The element to be processed by the pool.
+        :return: The output of the map function on the element.
+        """
+        result = pool.apply_async(_single_tokenize_fn, (element_tensor,))
+        return np.asarray(result.get(), dtype=np.int32)
+
+
+    ds = ds.map(
+        lambda x: {
+            'targets': tf.numpy_function(
+                func=tokenize_fn, 
+                inp=[x['targets']], 
+                Tout=tf.int32, 
+                stateful=False,
+            )
+        },
+        num_parallel_calls=number_of_parallel_calls,
+    )
+
+    return ds
+
 
 def preprocess_dataset(
     config: ml_collections.ConfigDict,
@@ -342,29 +412,13 @@ def preprocess_dataset(
     else:
         eval_batch_size = global_batch_size_to_load
     
-    # Set tokenize_processor
-    tokenize_processor = SentencePieceProcessor()
-    tokenize_processor.Load(vocab_path)
-
-    def tokenize_fn(t):
-        token_ids = tokenize_processor.EncodeAsIds(t)
-        if add_bos:
-            token_ids = [tokenize_processor.bos_id()] + token_ids
-        if add_eos:
-            token_ids = token_ids + [tokenize_processor.eos_id()]
-        return np.asarray(token_ids, dtype=np.int32)
-
     # train
-    train_ds = train_ds.map(
-        lambda x: {
-            'targets': tf.numpy_function(
-                func=tokenize_fn, 
-                inp=[x['targets']], 
-                Tout=tf.int32, 
-                stateful=False,
-            )
-        },
-        num_parallel_calls=AUTOTUNE,
+    train_ds = map_with_tokenize(
+        train_ds,
+        vocab_path=vocab_path,
+        add_bos=add_bos,
+        add_eos=add_eos,
+        number_of_parallel_calls=16,
     )
     train_ds = train_ds.shuffle(shuffle_buffer_size, seed=data_shuffle_seed)
     train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=512)
@@ -409,16 +463,12 @@ def preprocess_dataset(
     train_ds = train_ds.prefetch(32)
 
     # eval_ds
-    eval_ds = eval_ds.map(
-        lambda x: {
-            'targets': tf.numpy_function(
-                func=tokenize_fn, 
-                inp=[x['targets']], 
-                Tout=tf.int32, 
-                stateful=False,
-            )
-        },
-        num_parallel_calls=AUTOTUNE,
+    eval_ds = map_with_tokenize(
+        eval_ds,
+        vocab_path=vocab_path,
+        add_bos=add_bos,
+        add_eos=add_eos,
+        number_of_parallel_calls=1,
     )
     # note eval_ds is pre tokenized, reduce_concated and split to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts

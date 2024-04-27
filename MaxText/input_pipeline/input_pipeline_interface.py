@@ -25,7 +25,6 @@ from jax.sharding import PartitionSpec as P
 
 from input_pipeline import _tfds_data_processing
 from input_pipeline import _grain_data_processing
-from input_pipeline import _grain_data_processing_gg
 from input_pipeline import _tfds_data_processing_c4_mlperf
 from input_pipeline import _tfds_data_processing_gg_mlperf
 import tokenizer
