@@ -105,7 +105,8 @@ class MultiHostDataLoadIterator:
     self.length = length
     self.dataloder_save_directory = dataloder_save_directory
     self.dataloder_max_to_keep = dataloder_max_to_keep
-
+    self.reset()
+    
   def reset(self):
     # 保持一致，第一次存的时候是0
     self.step = tf.Variable(-1)
