@@ -105,7 +105,6 @@ class MultiHostDataLoadIterator:
     self.length = length
     self.dataloder_save_directory = dataloder_save_directory
     self.dataloder_max_to_keep = dataloder_max_to_keep
-    self.reset()
 
   def reset(self):
     # 保持一致，第一次存的时候是0
@@ -134,6 +133,7 @@ class MultiHostDataLoadIterator:
       raise ValueError("Type error: dataloader should be either tf.data.Dataset or grain.DataLoader.")
 
   def __iter__(self):
+    self.reset()
     return self
 
   def __next__(self):
