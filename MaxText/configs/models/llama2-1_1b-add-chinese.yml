@@ -26,7 +26,7 @@ enable_dropout: False
 logits_via_embedding: False
 normalization_layer_epsilon: 1.0e-5
 decoder_block: "llama2"
-tokenizer_path: "assets/llama_add_chinese_other.model"
+tokenizer_path: "assets/llama_add_world.model"
 dataset_type: "gg_mlperf"
 eval_dataset_size: 1024
 
