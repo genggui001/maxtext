@@ -56,7 +56,7 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  max_target_length=$max_target_length \
  per_device_batch_size=$per_device_batch_size \
  gradient_accumulation_steps=$gradient_accumulation_steps \
- base_output_directory=gs://genggui001-us-central2/llm_checkpoints/llama2-1_1b_4k_add-chinese  \
+ base_output_directory=gs://genggui001-us-central2/llm_checkpoints/llama2-1_1b_4k_add-chinese_small_step  \
  dataset_path=${dataset_path} \
  attention=flash \
  rope_base=1000000 \
@@ -68,4 +68,5 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  adam_b2=0.95 \
  adam_weight_decay=0.01 \
  learning_rate=1.76e-3 \
+
 
