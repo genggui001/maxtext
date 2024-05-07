@@ -3,7 +3,8 @@ set -e
 
 # export JAX_TRACEBACK_FILTERING=off
 
-idx=$(date +%Y-%m-%d-%H-%M)
+# idx=$(date +%Y-%m-%d-%H-%M)
+idx="2024-05-04-12-09"
 dataset_path=gs://genggui001-us-central2/corpus
 
 
