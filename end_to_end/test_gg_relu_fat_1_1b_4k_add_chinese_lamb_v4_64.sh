@@ -5,7 +5,7 @@ set -e
 
 # idx=$(date +%Y-%m-%d-%H-%M)
 idx="2024-04-28-09-26"
-dataset_path=gs://genggui001-us-central2/corpus
+dataset_path=gs://gg-us-central2/corpus
 
 
 all_token=2147483648000
@@ -58,7 +58,7 @@ python3 -u MaxText/train.py \
  max_target_length=$max_target_length \
  per_device_batch_size=$per_device_batch_size \
  gradient_accumulation_steps=$gradient_accumulation_steps \
- base_output_directory=gs://genggui001-us-central2/llm_checkpoints/gg_relu_fat-1_1b_4k_add-chinese  \
+ base_output_directory=gs://gg-us-central2/llm_checkpoints/gg_relu_fat-1_1b_4k_add-chinese  \
  dataset_path=${dataset_path} \
  attention=flash \
  rope_base=1000000 \
