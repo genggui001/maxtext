@@ -259,28 +259,28 @@ def get_datasets(
 ):
     """Load and return dataset of batched examples for use during training."""
     en_ds = load_base_dataset(
-        pattern=os.path.join(config.dataset_path, "gg_en/**/*.jsonl.gz"),
+        pattern=os.path.join(config.dataset_path, "gg_en/**/*.gz"),
         seed=config.data_shuffle_seed,
         data_index=dataloading_host_index,
         data_num_shards=dataloading_host_count,
     )
 
     zh_ds = load_base_dataset(
-        pattern=os.path.join(config.dataset_path, "gg_zh/**/*.jsonl.gz"),
+        pattern=os.path.join(config.dataset_path, "gg_zh/**/*.gz"),
         seed=config.data_shuffle_seed,
         data_index=dataloading_host_index,
         data_num_shards=dataloading_host_count,
     )
 
     other_ds = load_base_dataset(
-        pattern=os.path.join(config.dataset_path, "uonlp_culturax_shuffle/**/*.jsonl.gz"),
+        pattern=os.path.join(config.dataset_path, "uonlp_culturax_shuffle/**/*.gz"),
         seed=config.data_shuffle_seed,
         data_index=dataloading_host_index,
         data_num_shards=dataloading_host_count,
     )
 
     code_ds = load_base_dataset(
-        pattern=os.path.join(config.dataset_path, "the-stack-v2-train-full/**/*.jsonl.gz"),
+        pattern=os.path.join(config.dataset_path, "the-stack-v2-train-full/**/*.gz"),
         seed=config.data_shuffle_seed,
         data_index=dataloading_host_index,
         data_num_shards=dataloading_host_count,
