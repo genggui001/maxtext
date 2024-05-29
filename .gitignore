@@ -147,3 +147,4 @@ update_gdrive.sh
 download.py
 all.json
 **/.DS_Store
+test.jsonl

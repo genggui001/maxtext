@@ -411,7 +411,7 @@ def preprocess_dataset(
         eval_batch_size = config.eval_per_device_batch_size * global_mesh.size
     else:
         eval_batch_size = global_batch_size_to_load
-
+    
     # train
     train_ds = map_with_tokenize(
         train_ds,
@@ -421,23 +421,42 @@ def preprocess_dataset(
         number_of_parallel_calls=16,
     )
     train_ds = train_ds.shuffle(shuffle_buffer_size, seed=data_shuffle_seed)
+    train_ds = reduce_concat_tokens(train_ds, feature_key="targets", batch_size=512)
+    train_ds = split_tokens_to_targets_length(train_ds,  config.max_target_length+1)
 
-    def format_fn(x):
-        tokens = x["targets"][:config.max_target_length+1]
-        return {
-            "inputs": tokens[:-1],
-            "targets": tokens[1:],
-        }
+    def train_format_fn(x):
+        tokens = x["targets"]
 
-    train_ds = train_ds.map(
-        format_fn, 
-        num_parallel_calls=AUTOTUNE
-    )
+        x["inputs"] = tokens[:-1]
+        x["targets"] = tokens[1:]
+        
+        x["inputs_segmentation"] = tf.ones_like(x["inputs"])
+        x["targets_segmentation"] = x["inputs_segmentation"]
 
-    train_ds = sequence_packing.pack_dataset(train_ds, config.max_target_length)
+        x["inputs_position"] = tf.range(tf.size(tokens)-1, dtype=tf.int32)
+        x["targets_position"] = x["inputs_position"]
 
-    train_ds = train_ds.batch(
+        return x
+
+    train_ds = train_ds.map(train_format_fn, num_parallel_calls=AUTOTUNE)
+    train_ds = train_ds.padded_batch(
         global_batch_size_to_load // jax.process_count(), 
+        padded_shapes={
+            "inputs": config.max_target_length,
+            "targets": config.max_target_length,
+            "inputs_segmentation": config.max_target_length,
+            "targets_segmentation": config.max_target_length,
+            "inputs_position": config.max_target_length,
+            "targets_position": config.max_target_length,
+        },
+        padding_values={
+            "inputs": 0,
+            "targets": 0,
+            "inputs_segmentation": 0,
+            "targets_segmentation": 0,
+            "inputs_position": 0,
+            "targets_position": 0,
+        },
         drop_remainder=True
     )
 
@@ -451,11 +470,21 @@ def preprocess_dataset(
         add_eos=add_eos,
         number_of_parallel_calls=1,
     )
-    eval_ds = eval_ds.map(format_fn, num_parallel_calls=AUTOTUNE)
-
     # note eval_ds is pre tokenized, reduce_concated and split to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts
     eval_ds = sequence_packing.pack_dataset(eval_ds, config.max_target_length+1)
+
+    def eval_format_fn(x):
+        x["inputs"] = x["targets"][:-1]
+        x["inputs_position"] = x["targets_position"][:-1]
+        x["inputs_segmentation"] = x["targets_segmentation"][:-1]
+        
+        x["targets"] = x["targets"][1:]
+        x["targets_position"] = x["targets_position"][1:]
+        x["targets_segmentation"] = x["targets_segmentation"][1:]
+        return x
+
+    eval_ds = eval_ds.map(eval_format_fn, num_parallel_calls=AUTOTUNE)
 
     # ensure array split in an equal division for each device
     # pad zeros up to the same batch_size among all processes
