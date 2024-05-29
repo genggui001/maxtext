@@ -455,7 +455,7 @@ def preprocess_dataset(
 
     # note eval_ds is pre tokenized, reduce_concated and split to target_length
     #   mainly to avoid eval sequences change depending on the number of hosts
-    eval_ds = sequence_packing.pack_dataset(eval_ds, config.max_target_length+1)
+    eval_ds = sequence_packing.pack_dataset(eval_ds, config.max_target_length)
 
     # ensure array split in an equal division for each device
     # pad zeros up to the same batch_size among all processes
