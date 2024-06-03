@@ -3,8 +3,9 @@ set -e
 
 # export JAX_TRACEBACK_FILTERING=off
 
-idx=$(date +%Y-%m-%d-%H-%M)
-dataset_path=gs://gg-us-central2/corpus
+# idx=$(date +%Y-%m-%d-%H-%M)
+idx="2024-05-04-12-09"
+dataset_path=gs://kk-us-central2/corpus
 
 
 all_token=536870912000
@@ -56,15 +57,16 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  max_target_length=$max_target_length \
  per_device_batch_size=$per_device_batch_size \
  gradient_accumulation_steps=$gradient_accumulation_steps \
- base_output_directory=gs://gg-us-central2/llm_checkpoints/llama2-1_1b_4k_add-chinese_tiger  \
+ base_output_directory=gs://kk-us-central2/llm_checkpoints/llama2-1_1b_4k_add-chinese_tiger_small_step  \
  dataset_path=${dataset_path} \
  attention=flash \
- rope_base=1000000 \
+ rope_base=100000000 \
  norm_head_weight=True \
  gradient_clipping_threshold=0.0 \
- opt_type=tiger \
+ gradient_norm_threshold=0.0 \
+ opt_type=tiger_and_lamb \
  tiger_b=0.965 \
- tiger_powerball_gamma=0.5 \
+ tiger_powerball_gamma=0.75 \
  tiger_weight_decay=0.01 \
  adam_b1=0.9 \
  adam_b2=0.95 \

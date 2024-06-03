@@ -153,8 +153,8 @@ def get_optimizer(config):
     step_reduction=config.gradient_accumulation_steps,
   )
 
-  if config.opt_type == "tiger":
-    return tiger_adam_pax(
+  if config.opt_type == "tiger_and_lamb":
+    return tiger_lamb_pax(
       learning_rate=learning_rate_schedule,
       tiger_beta=config.tiger_b,
       tiger_powerball_gamma=config.tiger_powerball_gamma,
@@ -322,7 +322,7 @@ def scale_by_trust_ratio(
   return optax.GradientTransformation(init_fn, update_fn)
 
 
-def tiger_adam_pax(
+def tiger_lamb_pax(
   learning_rate: optax.Schedule,
   tiger_beta: float,
   tiger_powerball_gamma: float = 0.5,
@@ -356,7 +356,7 @@ def tiger_adam_pax(
       b2=adam_b2,
       eps=adam_eps,
       eps_root=adam_eps_root,
-      mu_dtype=None,
+      mu_dtype=mu_dtype,
       nesterov=False,
     ),
     optax.add_decayed_weights(
