@@ -153,8 +153,8 @@ def get_optimizer(config):
     step_reduction=config.gradient_accumulation_steps,
   )
 
-  if config.opt_type == "tiger_and_lamb":
-    return tiger_lamb_pax(
+  if config.opt_type == "tiger_and_adam":
+    return tiger_adam_pax(
       learning_rate=learning_rate_schedule,
       tiger_beta=config.tiger_b,
       tiger_powerball_gamma=config.tiger_powerball_gamma,
@@ -322,7 +322,7 @@ def scale_by_trust_ratio(
   return optax.GradientTransformation(init_fn, update_fn)
 
 
-def tiger_lamb_pax(
+def tiger_adam_pax(
   learning_rate: optax.Schedule,
   tiger_beta: float,
   tiger_powerball_gamma: float = 0.5,
@@ -367,7 +367,7 @@ def tiger_lamb_pax(
         "bias",
       ])
     ),
-    scale_by_trust_ratio(),
+    # scale_by_trust_ratio(),
     optax.scale_by_learning_rate(adam_learning_rate),
   )
 
@@ -480,29 +480,30 @@ def tiger_pax(
           print((name, p.shape, p.dtype, "use weight decay in tiger"))
 
         # scale
-        if (
-          "norm" in name
-          or "scale" in name
-          or "bias" in name
-        ):
-          print((name, p.shape, p.dtype, "use 0.5 scale"))
-          scale = 0.5
-        elif (
-          "layers" in name
-        ):
-          mean_axis = [d for d in range(p.ndim) if d != 1]
-          print((name, p.shape, p.dtype, f"use layers scale at axis={mean_axis}"))
+        scale = 1.0
+        # if (
+        #   "norm" in name
+        #   or "scale" in name
+        #   or "bias" in name
+        # ):
+        #   print((name, p.shape, p.dtype, "use 0.5 scale"))
+        #   scale = 0.5
+        # elif (
+        #   "layers" in name
+        # ):
+        #   mean_axis = [d for d in range(p.ndim) if d != 1]
+        #   print((name, p.shape, p.dtype, f"use layers scale at axis={mean_axis}"))
 
-          p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
-          u_norm = safe_root_mean_squares(u, min_rms=0., axis=mean_axis, keepdims=True)
+        #   p_norm = safe_root_mean_squares(p, min_rms=0., axis=mean_axis, keepdims=True)
+        #   u_norm = safe_root_mean_squares(u, min_rms=0., axis=mean_axis, keepdims=True)
 
-          scale = jnp.where(jnp.logical_or(p_norm == 0., u_norm == 0.), jnp.array(1.0, dtype=p.dtype), p_norm / u_norm)
-        else:
-          print((name, p.shape, p.dtype, "use base scale"))
-          p_norm = safe_root_mean_squares(p, min_rms=0.)
-          u_norm = safe_root_mean_squares(u, min_rms=0.)
+        #   scale = jnp.where(jnp.logical_or(p_norm == 0., u_norm == 0.), jnp.array(1.0, dtype=p.dtype), p_norm / u_norm)
+        # else:
+        #   print((name, p.shape, p.dtype, "use base scale"))
+        #   p_norm = safe_root_mean_squares(p, min_rms=0.)
+        #   u_norm = safe_root_mean_squares(u, min_rms=0.)
           
-          scale = jnp.where(jnp.logical_or(p_norm == 0., u_norm == 0.), jnp.array(1.0, dtype=p.dtype), p_norm / u_norm)
+        #   scale = jnp.where(jnp.logical_or(p_norm == 0., u_norm == 0.), jnp.array(1.0, dtype=p.dtype), p_norm / u_norm)
 
         return jnp.array(step_size, dtype=u.dtype) * scale * u
 

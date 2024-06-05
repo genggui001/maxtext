@@ -64,12 +64,12 @@ python3 -u MaxText/train.py MaxText/configs/base.yml \
  norm_head_weight=True \
  gradient_clipping_threshold=0.0 \
  gradient_norm_threshold=0.0 \
- opt_type=tiger_and_lamb \
+ opt_type=tiger_and_adam \
  tiger_b=0.965 \
  tiger_powerball_gamma=0.0 \
  tiger_weight_decay=0.01 \
  adam_b1=0.9 \
  adam_b2=0.95 \
  adam_weight_decay=0.01 \
- learning_rate=1.76e-3 \
+ learning_rate=1e-4 \
  adam_learning_rate_fraction=1.0
