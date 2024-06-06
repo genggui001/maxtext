@@ -28,7 +28,7 @@ from optax._src import linear_algebra as optax_linear_algebra
 import jax.numpy as jnp
 import numpy as np
 
-from max_utils import create_learning_rate_schedule
+from max_utils import create_learning_rate_schedule, l2norm_pytree
 
 def tree_path_to_string(path, sep=None):
   keys = []
@@ -481,6 +481,7 @@ def tiger_pax(
 
         # scale
         scale = 1.0
+        jax.debug.print("u l2norm: {}", l2norm_pytree(u, jnp.float32))
         # if (
         #   "norm" in name
         #   or "scale" in name
